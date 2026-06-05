@@ -27,6 +27,39 @@ export class CoupleService {
         return { code: user.code || null };
     }
 
-   
+    public async linkCouple(userId: string, code: string): Promise<Couple | null> {
+        // kiểm tra 2 user hiện tại có đang trong một cặp đôi nào không
+        if (await this.existCoupleAcitve(userId)) {
+            throw new Error('User is already in an active couple');
+        }
+
+        // tìm kiếm user có code
+        const partner = await this.userModel.findOne({ code: code });
+        if (!partner) {
+            throw new Error('Partner with the provided code not found');
+        }
+        if (await this.existCoupleAcitve(partner._id.toString())) {
+            throw new Error('Partner is already in an active couple');
+        }
+
+        // Tạo cặp đôi mới
+        const newCouple = new this.coupleModel({
+            user_1: userId,
+            user_2: partner._id,
+            start_date: new Date(),
+            status: CoupleStatus.ACTIVE
+        });
+        await newCouple.save();
+        return newCouple;
+    }
+
+    private async existCoupleAcitve(userId: string): Promise<boolean> {
+        const coupleUser1 = await this.coupleModel.find({ user_1: userId });
+        const existingUser1 = coupleUser1.some(couple => couple.status === CoupleStatus.ACTIVE);
+        if (existingUser1) {
+            return true;
+        }
+        return false;
+    }
 
 }
