@@ -38,7 +38,16 @@ export class CoupleController {
 
 
     // Hủy liên kết cặp đôi
-    
+    @Patch("me/unlink")
+    async unlinkCouple() {
+        const userId = "6a2315f160351a3aa19a43f5";
+        const couple = await this.coupleService.unlinkCouple(userId);
+        return {
+            success: true,
+            statusCode: 200,
+            data: couple
+        }
+    }
 
     // Hiển thị số ngày yêu nhau
     @Get("me/love-days")

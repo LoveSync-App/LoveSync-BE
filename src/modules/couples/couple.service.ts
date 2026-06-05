@@ -109,6 +109,14 @@ export class CoupleService {
         return { loveDays };
     }
 
-   
+    public async unlinkCouple(userId: string): Promise<Couple | null> {
+        const activeCouple = await this.coupleModel.findOne({ user_1: userId, status: CoupleStatus.ACTIVE });
+        if (!activeCouple) {
+            throw new NotFoundException('User is not in an active couple');
+        }
+        activeCouple.status = CoupleStatus.BROKEN_UP;
+        await activeCouple.save();
+        return activeCouple;
+    }
 
 }
