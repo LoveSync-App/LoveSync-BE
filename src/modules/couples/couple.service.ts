@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { User, UserDocument } from "../users/schemas/user.schema";
@@ -18,7 +18,7 @@ export class CoupleService {
     public async getMyCoupleCode(userId: string): Promise<{ code: string | null }> {
         const user = await this.userModel.findById(userId).select('code');
         if (!user) {
-            throw new Error('User not found');
+            throw new NotFoundException('User not found');
         }
         if (!user.code) {
             user.code = randomUUID();
@@ -30,16 +30,16 @@ export class CoupleService {
     public async linkCouple(userId: string, code: string): Promise<Couple | null> {
         // kiểm tra 2 user hiện tại có đang trong một cặp đôi nào không
         if (await this.existCoupleAcitve(userId)) {
-            throw new Error('User is already in an active couple');
+            throw new ConflictException('User is already in an active couple');
         }
 
         // tìm kiếm user có code
         const partner = await this.userModel.findOne({ code: code });
         if (!partner) {
-            throw new Error('Partner with the provided code not found');
+            throw new NotFoundException('Partner with the provided code not found');
         }
         if (await this.existCoupleAcitve(partner._id.toString())) {
-            throw new Error('Partner is already in an active couple');
+            throw new ConflictException('Partner is already in an active couple');
         }
 
         // Tạo cặp đôi mới
@@ -54,9 +54,8 @@ export class CoupleService {
     }
 
     private async existCoupleAcitve(userId: string): Promise<boolean> {
-        const coupleUser1 = await this.coupleModel.find({ user_1: userId });
-        const existingUser1 = coupleUser1.some(couple => couple.status === CoupleStatus.ACTIVE);
-        if (existingUser1) {
+        const coupleUser1 = await this.coupleModel.findOne({ user_1: userId, status: CoupleStatus.ACTIVE });
+        if (coupleUser1) {
             return true;
         }
         return false;
@@ -65,7 +64,7 @@ export class CoupleService {
     public async getLoveDays(userId: string): Promise<{ loveDays: number } | null> {
         const coupleUser1 = await this.coupleModel.findOne({ user_1: userId , status: CoupleStatus.ACTIVE});
         if (!coupleUser1) {
-            throw new Error('User is not in an active couple');
+            throw new NotFoundException('User is not in an active couple');
         }
         const startDate = coupleUser1.start_date;
         const currentDate = new Date();
