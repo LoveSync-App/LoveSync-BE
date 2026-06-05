@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
+import { Controller, Get, HttpCode, Param, Patch, Post } from "@nestjs/common";
 import { CoupleService } from "./couple.service";
 
 @Controller("couples")
@@ -17,7 +17,6 @@ export class CoupleController {
         return {
             success: true,
             statusCode: 200,
-            message: null,
             data: {
                 userId: userId,
                 code: response.code
@@ -33,13 +32,13 @@ export class CoupleController {
         return {
             success: true,
             statusCode: 200,
-            message: null,
             data: couple
         }
     }
 
 
     // Hủy liên kết cặp đôi
+    
 
     // Hiển thị số ngày yêu nhau
     @Get("me/love-days")
@@ -49,7 +48,6 @@ export class CoupleController {
         return {
             success: true,
             statusCode: 200,
-            message: null,
             data: couple
         }
     }

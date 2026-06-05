@@ -28,6 +28,10 @@ export class CoupleService {
     }
 
     public async linkCouple(userId: string, code: string): Promise<Couple | null> {
+        const user = await this.userModel.findById(userId);
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
         // kiểm tra 2 user hiện tại có đang trong một cặp đôi nào không
         if (await this.existCoupleAcitve(userId)) {
             throw new ConflictException('User is already in an active couple');
@@ -42,9 +46,9 @@ export class CoupleService {
             throw new ConflictException('Partner is already in an active couple');
         }
 
-        // Tạo cặp đôi mới
+            // Tạo cặp đôi mới
         const newCouple = new this.coupleModel({
-            user_1: userId,
+            user_1: user._id,
             user_2: partner._id,
             start_date: new Date(),
             status: CoupleStatus.ACTIVE
@@ -62,14 +66,49 @@ export class CoupleService {
     }
 
     public async getLoveDays(userId: string): Promise<{ loveDays: number } | null> {
-        const coupleUser1 = await this.coupleModel.findOne({ user_1: userId , status: CoupleStatus.ACTIVE});
-        if (!coupleUser1) {
+        const user = await this.userModel.findById(userId);
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        const activeCouple = await this.coupleModel.findOne({
+            status: CoupleStatus.ACTIVE,
+            $or: [
+                { user_1: user._id },
+                { user_2: user._id },
+            ],
+        });
+
+        if (!activeCouple) {
             throw new NotFoundException('User is not in an active couple');
         }
-        const startDate = coupleUser1.start_date;
+        const partnerId = activeCouple.user_1.equals(user._id)
+            ? activeCouple.user_2
+            : activeCouple.user_1;
+        
+        const historyCouples = await this.coupleModel.find({
+            status: CoupleStatus.BROKEN_UP,
+            $or: [
+                { user_1: user._id, user_2: partnerId },
+                { user_1: partnerId, user_2: user._id },
+            ],
+        });
+
+        console.log("historyCouples: ", historyCouples);
+
+        let loveDays = 0;
+        for (const couple of historyCouples) {
+            const startDate = couple.start_date;
+            const endDate = couple.updatedAt;
+            loveDays += Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+
+        const startDate = activeCouple.start_date;
         const currentDate = new Date();
-        const loveDays = Math.floor((currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        loveDays = Math.floor((currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + loveDays;
         return { loveDays };
     }
+
+   
 
 }

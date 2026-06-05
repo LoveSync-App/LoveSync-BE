@@ -35,6 +35,9 @@ export class Couple {
         default: CoupleStatus.ACTIVE,
     })
     status: CoupleStatus;
+
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 export const CoupleSchema = SchemaFactory.createForClass(Couple);
