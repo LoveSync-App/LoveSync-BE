@@ -62,4 +62,15 @@ export class CoupleService {
         return false;
     }
 
+    public async getLoveDays(userId: string): Promise<{ loveDays: number } | null> {
+        const coupleUser1 = await this.coupleModel.findOne({ user_1: userId , status: CoupleStatus.ACTIVE});
+        if (!coupleUser1) {
+            throw new Error('User is not in an active couple');
+        }
+        const startDate = coupleUser1.start_date;
+        const currentDate = new Date();
+        const loveDays = Math.floor((currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        return { loveDays };
+    }
+
 }
