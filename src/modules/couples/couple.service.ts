@@ -21,7 +21,10 @@ export class CoupleService {
             throw new NotFoundException('User not found');
         }
         if (!user.code) {
-            user.code = randomUUID();
+            user.code = Math.random().toString(36).substring(2, 10);
+            while(await this.userModel.findOne({ code: user.code })) {
+                user.code = Math.random().toString(36).substring(2, 10);
+            }
             await user.save();
         }
         return { code: user.code || null };
@@ -119,4 +122,18 @@ export class CoupleService {
         return activeCouple;
     }
 
+    public async checkCoupleCode(code: string): Promise<Object | null> {
+        const partner = await this.userModel.findOne({ code: code });
+        if (!partner) {
+            throw new NotFoundException('Partner with the provided code not found');
+        }
+
+        return {
+            partnerId: partner._id,
+            partnerName: partner.name,
+            partnerAvatar: partner.avatar,
+            partnerEmail: partner.email,
+            partnerPhone: partner.phone
+        }
+    }
 }
