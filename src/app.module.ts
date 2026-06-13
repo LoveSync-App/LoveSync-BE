@@ -11,6 +11,7 @@ import { LocationModule } from './modules/locations/location.module';
 import { NotificationModule } from './modules/notifications/notification.module';
 import { SpecialDateModule } from './modules/special-dates/special-date.module';
 import { DotenvConfigModule } from './config/dotenv.config';
+import { CoupleModule } from './modules/couples/couple.module';
 
 @Module({
   imports: [
@@ -23,7 +24,8 @@ import { DotenvConfigModule } from './config/dotenv.config';
     LocationModule,
     NotificationModule,
     SpecialDateModule,
-    UserModule
+    UserModule,
+    CoupleModule
   ],
   controllers: [AppController],
   providers: [AppService],
