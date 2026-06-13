@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
+import { Model, Types } from "mongoose";
 import { User, UserDocument } from "../users/schemas/user.schema";
 import { Couple, CoupleDocument } from "./schemas/couple.schema";
 import { randomUUID } from "crypto";
@@ -135,5 +135,46 @@ export class CoupleService {
             partnerEmail: partner.email,
             partnerPhone: partner.phone
         }
+    }
+
+    public async getMyCouple(userId: string): Promise<Object | null> {
+        const userObjectId = new Types.ObjectId(userId);
+
+        const activeCouple = await this.coupleModel.findOne({
+            status: CoupleStatus.ACTIVE,
+            $or: [
+                { user_1: userObjectId },
+                { user_2: userObjectId },
+            ],
+        }).populate('user_1', 'name avatar email phone').populate('user_2', 'name avatar email phone');
+
+        if (!activeCouple) {
+            throw new NotFoundException('User is not in an active couple');
+        }
+
+        const partner = activeCouple.user_1._id.equals(userObjectId) 
+            ? 
+                activeCouple.user_2 as any 
+            : 
+                activeCouple.user_1 as any;
+
+        const user = activeCouple.user_1._id.equals(userObjectId)
+            ? activeCouple.user_1 as any
+            : activeCouple.user_2 as any;
+
+        return {
+            coupleId: activeCouple._id,
+            userId: user._id,
+            userName: user.name,
+            userAvatar: user.avatar,
+            userEmail: user.email,
+            userPhone: user.phone,
+            partnerId: partner._id,
+            partnerName: partner?.name,
+            partnerAvatar: partner.avatar,
+            partnerEmail: partner.email,
+            partnerPhone: partner.phone,
+            startDate: activeCouple.start_date
+        };
     }
 }

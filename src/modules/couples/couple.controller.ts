@@ -75,5 +75,17 @@ export class CoupleController {
             data: couple
         }
     }
+
+    @Get("me")
+    @HttpCode(200)
+    async getMyCouple() {
+        const userId = "6a2315f160351a3aa19a43f5";
+        const couple = await this.coupleService.getMyCouple(userId);
+        return {
+            success: true,
+            statusCode: 200,
+            data: couple
+        }
+    }
     
 }
