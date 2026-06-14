@@ -4,6 +4,7 @@ import { Couple, CoupleSchema } from "./schemas/couple.schema";
 import { CoupleController } from "./couple.controller";
 import { CoupleService } from "./couple.service";
 import { UserModule } from "../users/user.module";
+import { CouplePeriod, CouplePeriodSchema } from "./schemas/couple_period.schema";
 
 @Module(
     {
@@ -12,6 +13,10 @@ import { UserModule } from "../users/user.module";
                 {
                     name: Couple.name,
                     schema: CoupleSchema
+                },
+                {
+                    name:CouplePeriod.name,
+                    schema: CouplePeriodSchema
                 }
             ]),
             UserModule

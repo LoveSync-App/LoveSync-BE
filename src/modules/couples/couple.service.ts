@@ -5,6 +5,7 @@ import { User, UserDocument } from "../users/schemas/user.schema";
 import { Couple, CoupleDocument } from "./schemas/couple.schema";
 import { randomUUID } from "crypto";
 import { CoupleStatus } from "./enum/couple-status.enum";
+import { CouplePeriod, CouplePeriodDocument } from "./schemas/couple_period.schema";
 
 @Injectable()
 export class CoupleService {
@@ -12,7 +13,9 @@ export class CoupleService {
         @InjectModel(User.name)
         private readonly userModel: Model<UserDocument>,
         @InjectModel(Couple.name)   
-        private readonly coupleModel: Model<CoupleDocument>
+        private readonly coupleModel: Model<CoupleDocument>,
+        @InjectModel(CouplePeriod.name)
+        private readonly couplePeriodModel: Model<CouplePeriodDocument>
     ) {}
 
     public async getMyCoupleCode(userId: string): Promise<{ code: string | null }> {
@@ -31,96 +34,85 @@ export class CoupleService {
     }
 
     public async linkCouple(userId: string, code: string): Promise<Couple | null> {
+        // throw new NotFoundException('Not implemented yet');
         const user = await this.userModel.findById(userId);
         if (!user) {
             throw new NotFoundException('User not found');
         }
-        // kiểm tra 2 user hiện tại có đang trong một cặp đôi nào không
-        if (await this.existCoupleAcitve(userId)) {
-            throw new ConflictException('User is already in an active couple');
-        }
 
-        // tìm kiếm user có code
-        const partner = await this.userModel.findOne({ code: code });
+        const partner = await this.userModel.findOne({ code });
         if (!partner) {
-            throw new NotFoundException('Partner with the provided code not found');
-        }
-        if (await this.existCoupleAcitve(partner._id.toString())) {
-            throw new ConflictException('Partner is already in an active couple');
+            throw new NotFoundException('Partner not found');
         }
 
-            // Tạo cặp đôi mới
-        const newCouple = new this.coupleModel({
-            user_1: user._id,
-            user_2: partner._id,
-            start_date: new Date(),
-            status: CoupleStatus.ACTIVE
-        });
-        await newCouple.save();
-        return newCouple;
-    }
-
-    private async existCoupleAcitve(userId: string): Promise<boolean> {
-        const coupleUser1 = await this.coupleModel.findOne({ user_1: userId, status: CoupleStatus.ACTIVE });
-        if (coupleUser1) {
-            return true;
-        }
-        return false;
-    }
-
-    public async getLoveDays(userId: string): Promise<{ loveDays: number } | null> {
-        const user = await this.userModel.findById(userId);
-        if (!user) {
-            throw new NotFoundException('User not found');
-        }
-
-        const activeCouple = await this.coupleModel.findOne({
-            status: CoupleStatus.ACTIVE,
+        const existingCouple = await this.coupleModel.findOne({
             $or: [
                 { user_1: user._id },
                 { user_2: user._id },
             ],
+            status: CoupleStatus.ACTIVE,
         });
 
-        if (!activeCouple) {
-            throw new NotFoundException('User is not in an active couple');
-        }
-        const partnerId = activeCouple.user_1.equals(user._id)
-            ? activeCouple.user_2
-            : activeCouple.user_1;
-        
-        const historyCouples = await this.coupleModel.find({
-            status: CoupleStatus.BROKEN_UP,
+        const existingPartnerCouple = await this.coupleModel.findOne({
             $or: [
-                { user_1: user._id, user_2: partnerId },
-                { user_1: partnerId, user_2: user._id },
+                { user_1: partner._id }, 
+                { user_2: partner._id },
             ],
+            status: CoupleStatus.ACTIVE,
         });
 
-        console.log("historyCouples: ", historyCouples);
-
-        let loveDays = 0;
-        for (const couple of historyCouples) {
-            const startDate = couple.start_date;
-            const endDate = couple.updatedAt;
-            loveDays += Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (existingCouple || existingPartnerCouple) {
+            throw new ConflictException('Either you or your partner is already in an active couple');
         }
 
-        const startDate = activeCouple.start_date;
-        const currentDate = new Date();
-        loveDays = Math.floor((currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + loveDays;
-        return { loveDays };
+        // const newCouple = new this.coupleModel({
+        //     user_1: user._id,
+        //     user_2: partner._id,
+        //     status: CoupleStatus.ACTIVE,
+        // })
+        // await newCouple.save();
+        let couple = await this.coupleModel.findOne({
+            $and: [
+                {
+                    $or: [
+                        { user_1: user._id },
+                        { user_2: user._id },
+                    ]
+                },
+                {
+                    $or: [
+                        { user_1: partner._id },
+                        { user_2: partner._id },
+                    ]
+                }
+            ]
+        });
+        if (couple) {
+            couple.user_1 = user._id;
+            couple.user_2 = partner._id;
+            couple.status = CoupleStatus.ACTIVE;
+            await couple.save();
+        }
+        else {
+            couple = new this.coupleModel({
+                user_1: user._id,
+                user_2: partner._id,
+                status: CoupleStatus.ACTIVE,
+            });
+            await couple.save();
+        }
+
+        const period = new this.couplePeriodModel({
+            start_date: new Date(),
+            end_date: new Date(),
+            couple: couple._id,
+            status: CoupleStatus.ACTIVE,
+        })
+        await period.save();
+
+        return couple;
     }
 
-    public async unlinkCouple(userId: string): Promise<Couple | null> {
-        const activeCouple = await this.coupleModel.findOne({ user_1: userId, status: CoupleStatus.ACTIVE });
-        if (!activeCouple) {
-            throw new NotFoundException('User is not in an active couple');
-        }
-        activeCouple.status = CoupleStatus.BROKEN_UP;
-        await activeCouple.save();
-        return activeCouple;
-    }
 
     public async checkCoupleCode(code: string): Promise<Object | null> {
         const partner = await this.userModel.findOne({ code: code });
@@ -137,33 +129,89 @@ export class CoupleService {
         }
     }
 
-    public async getMyCouple(userId: string): Promise<Object | null> {
+    public async getLoveDays(userId: string): Promise<{ loveDays: number } | null> {
+        // throw new NotFoundException('Not implemented yet');
         const userObjectId = new Types.ObjectId(userId);
-
-        const activeCouple = await this.coupleModel.findOne({
-            status: CoupleStatus.ACTIVE,
+        const couple = await this.coupleModel.findOne({
             $or: [
                 { user_1: userObjectId },
                 { user_2: userObjectId },
             ],
-        }).populate('user_1', 'name avatar email phone').populate('user_2', 'name avatar email phone');
+            status: CoupleStatus.ACTIVE,
+        });
 
-        if (!activeCouple) {
-            throw new NotFoundException('User is not in an active couple');
+        if (!couple) {
+            throw new NotFoundException('Couple not found');
         }
 
-        const partner = activeCouple.user_1._id.equals(userObjectId) 
-            ? 
-                activeCouple.user_2 as any 
-            : 
-                activeCouple.user_1 as any;
+        const periods = await this.couplePeriodModel.find({ couple: couple._id});
 
-        const user = activeCouple.user_1._id.equals(userObjectId)
-            ? activeCouple.user_1 as any
-            : activeCouple.user_2 as any;
+        let loveDays = 0;
+        const today = new Date();
+
+        for (const period of periods) {
+            const startDate = new Date(period.start_date);
+            const endDate = (period.status === CoupleStatus.BROKEN_UP) ? new Date(period.end_date) : today;
+            const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            loveDays += diffDays;
+        }
+
+        return { loveDays };
+    }
+
+    public async unlinkCouple(userId: string): Promise<Couple | null> {
+        // throw new NotFoundException('Not implemented yet');
+        const userObjectId = new Types.ObjectId(userId);
+        const couple = await this.coupleModel.findOne({
+            $or: [
+                { user_1: userObjectId },
+                { user_2: userObjectId },
+            ],
+            status: CoupleStatus.ACTIVE,
+        });
+
+        if (!couple) {
+            throw new NotFoundException('Couple not found');
+        }
+
+        const period = await this.couplePeriodModel.findOne({ couple: couple._id, status: CoupleStatus.ACTIVE });
+        if (period) {
+            period.end_date = new Date();
+            period.status = CoupleStatus.BROKEN_UP;
+            await period.save();
+
+            couple.status = CoupleStatus.BROKEN_UP;
+            await couple.save();
+        }
+        else 
+        {
+            throw new NotFoundException('Couple period not found');
+        }
+        return couple;
+    }
+
+    public async getMyCouple(userId: string): Promise<Object | null> {
+        // throw new NotFoundException('Not implemented yet');
+        const userObjectId = new Types.ObjectId(userId);
+
+        const couple = await this.coupleModel.findOne({
+            $or: [
+                { user_1: userObjectId },
+                { user_2: userObjectId },
+            ],
+            status: CoupleStatus.ACTIVE,
+        }).populate('user_1', 'name email avatar').populate('user_2', 'name email avatar');
+        
+        if (!couple) {
+            throw new NotFoundException('Couple not found');
+        }
+
+        const user : any = (couple.user_1._id.equals(userObjectId)) ? couple.user_1 : couple.user_2;
+        const partner : any = (couple.user_1._id.equals(userObjectId)) ? couple.user_2 : couple.user_1;
 
         return {
-            coupleId: activeCouple._id,
+            coupleId: couple._id,
             userId: user._id,
             userName: user.name,
             userAvatar: user.avatar,
@@ -174,7 +222,6 @@ export class CoupleService {
             partnerAvatar: partner.avatar,
             partnerEmail: partner.email,
             partnerPhone: partner.phone,
-            startDate: activeCouple.start_date
         };
     }
 }
