@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
-import { Model, Types } from "mongoose";
+import { Model, ObjectId, Types } from "mongoose";
 import { User, UserDocument } from "../users/schemas/user.schema";
 import { Couple, CoupleDocument } from "./schemas/couple.schema";
 import { randomUUID } from "crypto";
@@ -34,7 +34,6 @@ export class CoupleService {
     }
 
     public async linkCouple(userId: string, code: string): Promise<Couple | null> {
-        // throw new NotFoundException('Not implemented yet');
         const user = await this.userModel.findById(userId);
         if (!user) {
             throw new NotFoundException('User not found');
@@ -46,6 +45,7 @@ export class CoupleService {
         }
 
         const existingCouple = await this.coupleModel.findOne({
+
             $or: [
                 { user_1: user._id },
                 { user_2: user._id },
@@ -65,12 +65,6 @@ export class CoupleService {
             throw new ConflictException('Either you or your partner is already in an active couple');
         }
 
-        // const newCouple = new this.coupleModel({
-        //     user_1: user._id,
-        //     user_2: partner._id,
-        //     status: CoupleStatus.ACTIVE,
-        // })
-        // await newCouple.save();
         let couple = await this.coupleModel.findOne({
             $and: [
                 {
