@@ -5,21 +5,30 @@ import { CoupleController } from "./couple.controller";
 import { CoupleService } from "./couple.service";
 import { UserModule } from "../users/user.module";
 import { CouplePeriod, CouplePeriodSchema } from "./schemas/couple_period.schema";
+import { Invitation, InvitationSchema } from "./schemas/invitation.schema";
+import { DeviceModule } from "../device/device.module";
+import { NotificationModule } from "../notifications/notification.module";
 
 @Module(
     {
-        imports:[
+        imports: [
             MongooseModule.forFeature([
                 {
                     name: Couple.name,
                     schema: CoupleSchema
                 },
                 {
-                    name:CouplePeriod.name,
+                    name: CouplePeriod.name,
                     schema: CouplePeriodSchema
+                },
+                {
+                    name: Invitation.name,
+                    schema: InvitationSchema
                 }
             ]),
-            UserModule
+            UserModule,
+            DeviceModule,
+            NotificationModule
         ],
         exports: [
             MongooseModule
@@ -32,4 +41,4 @@ import { CouplePeriod, CouplePeriodSchema } from "./schemas/couple_period.schema
         ]
     }
 )
-export class CoupleModule {}
+export class CoupleModule { }

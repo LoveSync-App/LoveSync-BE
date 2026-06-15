@@ -1,6 +1,7 @@
 import { Controller, Get, HttpCode, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import { CoupleService } from "./couple.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { InvitationStatus } from "./enum/invitation-status.enum";
 
 @UseGuards(JwtAuthGuard)
 @Controller("couples")
@@ -8,7 +9,7 @@ export class CoupleController {
 
     constructor(
         private readonly coupleService: CoupleService
-    ) {}
+    ) { }
 
     // Lấy mã COUPLE của người dùng
     @Get("code/me")
@@ -24,7 +25,7 @@ export class CoupleController {
                 code: response.code
             }
         }
-    } 
+    }
 
     @Get("code/:code")
     @HttpCode(200)
@@ -89,5 +90,41 @@ export class CoupleController {
             data: couple
         }
     }
-    
+
+    @Get("invitations/:status")
+    @HttpCode(200)
+    async getInvitationByStatus(@Req() req, @Param("status") status: InvitationStatus) {
+        const userId = req.user.id;
+        const invitations = await this.coupleService.getInvitationByIdAndStatus(userId, status);
+        console.log("Invitations for userId:", userId, "with status:", status, "are:", invitations);
+        return {
+            success: true,
+            statusCode: 200,
+            data: invitations
+        }
+    }
+
+    @Patch("invitations/:invitationId/accept")
+    @HttpCode(200)
+    async acceptInvitation(@Req() req, @Param("invitationId") invitationId: string) {
+        const userId = req.user.id;
+        await this.coupleService.acceptInvitation(invitationId, userId);
+        return {
+            success: true,
+            statusCode: 200,
+            data: null
+        }
+    }
+
+    @Patch("invitations/:invitationId/reject")
+    @HttpCode(200)
+    async rejectInvitation(@Req() req, @Param("invitationId") invitationId: string) {
+        const userId = req.user.id;
+        await this.coupleService.rejectInvitation(invitationId, userId);
+        return {
+            success: true,
+            statusCode: 200,
+            data: null
+        }
+    }
 }

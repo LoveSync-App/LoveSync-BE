@@ -13,6 +13,7 @@ import { SpecialDateModule } from './modules/special-dates/special-date.module';
 import { DotenvConfigModule } from './config/dotenv.config';
 import { CoupleModule } from './modules/couples/couple.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { DeviceModule } from './modules/device/device.module';
 
 @Module({
   imports: [
@@ -27,7 +28,8 @@ import { AuthModule } from './modules/auth/auth.module';
     SpecialDateModule,
     UserModule,
     CoupleModule,
-    AuthModule
+    AuthModule,
+    DeviceModule
   ],
   controllers: [AppController],
   providers: [AppService],

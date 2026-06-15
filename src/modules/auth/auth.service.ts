@@ -80,14 +80,16 @@ export class AuthService {
         const newUser = new this.userModel({
             name,
             email,
-            password: hashPassword
+            password: hashPassword,
+            avatar: "https://i.pinimg.com/550x/0a/2f/68/0a2f68448ab64c7fb67e75ef410de163.jpg",
+            phone: ""
         });
         await newUser.save();
         return {
             id: newUser._id,
             email: newUser.email,
             name: newUser.name,
-            avatar: newUser.avatar
+            avatar: newUser.avatar,
         };
     }
 }

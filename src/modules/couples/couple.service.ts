@@ -1,22 +1,32 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import { Model, ObjectId, Types } from "mongoose";
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { InjectConnection, InjectModel } from "@nestjs/mongoose";
+import { Connection, Model, Types } from "mongoose";
 import { User, UserDocument } from "../users/schemas/user.schema";
 import { Couple, CoupleDocument } from "./schemas/couple.schema";
-import { randomUUID } from "crypto";
 import { CoupleStatus } from "./enum/couple-status.enum";
 import { CouplePeriod, CouplePeriodDocument } from "./schemas/couple_period.schema";
+import { Invitation, InvitationDocument } from "./schemas/invitation.schema";
+import { NotificationService } from "../notifications/notification_service";
+import { Device, DeviceDocument } from "../device/schema/device.schema";
+import { InvitationStatus } from "./enum/invitation-status.enum";
 
 @Injectable()
 export class CoupleService {
     constructor(
         @InjectModel(User.name)
         private readonly userModel: Model<UserDocument>,
-        @InjectModel(Couple.name)   
+        @InjectModel(Couple.name)
         private readonly coupleModel: Model<CoupleDocument>,
         @InjectModel(CouplePeriod.name)
-        private readonly couplePeriodModel: Model<CouplePeriodDocument>
-    ) {}
+        private readonly couplePeriodModel: Model<CouplePeriodDocument>,
+        @InjectModel(Invitation.name)
+        private readonly invitationModel: Model<InvitationDocument>,
+        @InjectModel(Device.name)
+        private readonly deviceModel: Model<DeviceDocument>,
+        @InjectConnection()
+        private readonly connection: Connection,
+        private readonly notificationService: NotificationService,
+    ) { }
 
     public async getMyCoupleCode(userId: string): Promise<{ code: string | null }> {
         const user = await this.userModel.findById(userId).select('code');
@@ -25,7 +35,7 @@ export class CoupleService {
         }
         if (!user.code) {
             user.code = Math.random().toString(36).substring(2, 10);
-            while(await this.userModel.findOne({ code: user.code })) {
+            while (await this.userModel.findOne({ code: user.code })) {
                 user.code = Math.random().toString(36).substring(2, 10);
             }
             await user.save();
@@ -33,80 +43,179 @@ export class CoupleService {
         return { code: user.code || null };
     }
 
-    public async linkCouple(userId: string, code: string): Promise<Couple | null> {
+    public async linkCouple(userId: string, code: string): Promise<Invitation | null> {
         const user = await this.userModel.findById(userId);
-        if (!user) {
-            throw new NotFoundException('User not found');
-        }
+        if (!user) throw new NotFoundException('User not found');
 
         const partner = await this.userModel.findOne({ code });
-        if (!partner) {
-            throw new NotFoundException('Partner not found');
+        if (!partner) throw new NotFoundException('Partner not found');
+
+        if (user._id.toString() === partner._id.toString()) {
+            throw new BadRequestException('You cannot link with yourself');
         }
 
-        const existingCouple = await this.coupleModel.findOne({
-
-            $or: [
-                { user_1: user._id },
-                { user_2: user._id },
-            ],
+        const hasActiveCouple = await this.coupleModel.findOne({
+            $or: [{ user_1: user._id }, { user_2: user._id }, { user_1: partner._id }, { user_2: partner._id }],
             status: CoupleStatus.ACTIVE,
         });
-
-        const existingPartnerCouple = await this.coupleModel.findOne({
-            $or: [
-                { user_1: partner._id }, 
-                { user_2: partner._id },
-            ],
-            status: CoupleStatus.ACTIVE,
-        });
-
-        if (existingCouple || existingPartnerCouple) {
+        if (hasActiveCouple) {
             throw new ConflictException('Either you or your partner is already in an active couple');
         }
 
-        let couple = await this.coupleModel.findOne({
-            $and: [
-                {
-                    $or: [
-                        { user_1: user._id },
-                        { user_2: user._id },
-                    ]
-                },
-                {
-                    $or: [
-                        { user_1: partner._id },
-                        { user_2: partner._id },
-                    ]
-                }
-            ]
+        let invitation = await this.invitationModel.findOne({
+            sender: user._id,
+            receiver: partner._id,
+            status: InvitationStatus.PENDING
         });
-        if (couple) {
-            couple.user_1 = user._id;
-            couple.user_2 = partner._id;
-            couple.status = CoupleStatus.ACTIVE;
-            await couple.save();
-        }
-        else {
-            couple = new this.coupleModel({
-                user_1: user._id,
-                user_2: partner._id,
-                status: CoupleStatus.ACTIVE,
+
+        if (!invitation) {
+            const reverseInvite = await this.invitationModel.findOne({
+                sender: partner._id,
+                receiver: user._id,
+                status: InvitationStatus.PENDING
             });
-            await couple.save();
+            if (reverseInvite) {
+                throw new ConflictException('This partner has already sent an invitation to you');
+            }
+
+            invitation = new this.invitationModel({
+                sender: user._id,
+                receiver: partner._id,
+                status: InvitationStatus.PENDING
+            });
+            await invitation.save();
         }
 
-        const period = new this.couplePeriodModel({
-            start_date: new Date(),
-            end_date: new Date(),
-            couple: couple._id,
-            status: CoupleStatus.ACTIVE,
-        })
-        await period.save();
+        this.deviceModel.findOne({ user: partner._id }).then(device => {
+            if (device && device.token) {
+                this.notificationService.sendNotification(
+                    device.token,
+                    'Ghép cặp đôi',
+                    `${user.name} đã gửi lời mời ghép cặp với bạn!`
+                );
+            }
+        }).catch(err => console.error("Noti error:", err));
 
-        return couple;
+        return invitation;
     }
 
+    public async getInvitationByIdAndStatus(
+        userId: string,
+        status: InvitationStatus
+    ) {
+        const objectUserId = new Types.ObjectId(userId);
+        const invitations = await this.invitationModel.find({
+            receiver: objectUserId,
+            status: status,
+        }).populate('sender', 'name avatar');
+        return invitations.map(invitation => {
+            const sender = invitation.sender as unknown as User;
+            return {
+                id: invitation._id.toString(),
+                partnerName: sender.name,
+                partnerAvatar: sender.avatar,
+            };
+        });
+    }
+
+    public async rejectInvitation(invitationId: string, userId: string) {
+        const invitation = await this.invitationModel.findById(invitationId);
+        if (!invitation) {
+            throw new NotFoundException('Invitation not found');
+        }
+        if (invitation.receiver.toString() !== userId) {
+            throw new ConflictException('You are not the receiver of this invitation');
+        }
+        invitation.status = InvitationStatus.REJECTED;
+        await invitation.save();
+        return invitation;
+    }
+
+    public async acceptInvitation(invitationId: string, userId: string) {
+        const session = await this.connection.startSession();
+        session.startTransaction();
+
+        try {
+            const invitation = await this.invitationModel
+                .findById(new Types.ObjectId(invitationId))
+                .session(session);
+            if (!invitation) throw new NotFoundException('Invitation not found');
+            if (invitation.receiver.toString() !== userId) {
+                throw new ConflictException('You are not the receiver of this invitation');
+            }
+            if (invitation.status !== InvitationStatus.PENDING) {
+                throw new BadRequestException('Invitation is no longer pending');
+            }
+
+            const senderId = invitation.sender;
+            const receiverId = invitation.receiver;
+
+            const existingCouple = await this.coupleModel.findOne({
+                $or: [
+                    { user_1: senderId }, { user_2: senderId },
+                    { user_1: receiverId }, { user_2: receiverId }
+                ],
+                status: CoupleStatus.ACTIVE,
+            }).session(session);
+
+            if (existingCouple) {
+                invitation.status = InvitationStatus.REJECTED;
+                await invitation.save({ session });
+                throw new ConflictException('Either you or your partner is already in an active couple');
+            }
+
+            invitation.status = InvitationStatus.ACCEPTED;
+            await invitation.save({ session });
+
+            let couple = await this.coupleModel.findOne({
+                $or: [
+                    { user_1: senderId, user_2: receiverId },
+                    { user_1: receiverId, user_2: senderId }
+                ]
+            }).session(session);
+
+            if (couple) {
+                couple.status = CoupleStatus.ACTIVE;
+                await couple.save({ session });
+            } else {
+                couple = new this.coupleModel({
+                    user_1: senderId,
+                    user_2: receiverId,
+                    status: CoupleStatus.ACTIVE,
+                });
+                await couple.save({ session });
+            }
+
+            const period = new this.couplePeriodModel({
+                start_date: new Date(),
+                end_date: new Date(),
+                couple: couple._id,
+                status: CoupleStatus.ACTIVE,
+            });
+            await period.save({ session });
+
+            await this.invitationModel.updateMany(
+                {
+                    _id: { $ne: invitation._id },
+                    status: InvitationStatus.PENDING,
+                    $or: [
+                        { sender: senderId }, { receiver: senderId },
+                        { sender: receiverId }, { receiver: receiverId }
+                    ]
+                },
+                { $set: { status: InvitationStatus.REJECTED } }
+            ).session(session);
+
+            await session.commitTransaction();
+            return couple;
+
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
+        }
+    }
 
     public async checkCoupleCode(code: string): Promise<Object | null> {
         const partner = await this.userModel.findOne({ code: code });
@@ -138,7 +247,7 @@ export class CoupleService {
             throw new NotFoundException('Couple not found');
         }
 
-        const periods = await this.couplePeriodModel.find({ couple: couple._id});
+        const periods = await this.couplePeriodModel.find({ couple: couple._id });
 
         let loveDays = 0;
         const today = new Date();
@@ -178,8 +287,7 @@ export class CoupleService {
             couple.status = CoupleStatus.BROKEN_UP;
             await couple.save();
         }
-        else 
-        {
+        else {
             throw new NotFoundException('Couple period not found');
         }
         return couple;
@@ -196,13 +304,13 @@ export class CoupleService {
             ],
             status: CoupleStatus.ACTIVE,
         }).populate('user_1', 'name email avatar').populate('user_2', 'name email avatar');
-        
+
         if (!couple) {
             throw new NotFoundException('Couple not found');
         }
 
-        const user : any = (couple.user_1._id.equals(userObjectId)) ? couple.user_1 : couple.user_2;
-        const partner : any = (couple.user_1._id.equals(userObjectId)) ? couple.user_2 : couple.user_1;
+        const user: any = (couple.user_1._id.equals(userObjectId)) ? couple.user_1 : couple.user_2;
+        const partner: any = (couple.user_1._id.equals(userObjectId)) ? couple.user_2 : couple.user_1;
 
         return {
             coupleId: couple._id,
