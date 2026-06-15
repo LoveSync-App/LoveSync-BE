@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
-import { Model, Types } from "mongoose";
+import { Model, ObjectId, Types } from "mongoose";
 import { User, UserDocument } from "../users/schemas/user.schema";
 import { Couple, CoupleDocument } from "./schemas/couple.schema";
 import { randomUUID } from "crypto";
@@ -31,25 +31,24 @@ export class CoupleService {
     }
 
     public async linkCouple(userId: string, code: string): Promise<Couple | null> {
-        const user = await this.userModel.findById(userId);
+        const userObjectId = new Types.ObjectId(userId);
+
+        const user = await this.userModel.findById(userObjectId);
         if (!user) {
             throw new NotFoundException('User not found');
         }
-        // kiểm tra 2 user hiện tại có đang trong một cặp đôi nào không
-        if (await this.existCoupleAcitve(userId)) {
+        if (await this.existCoupleAcitve(userObjectId)) {
             throw new ConflictException('User is already in an active couple');
         }
 
-        // tìm kiếm user có code
         const partner = await this.userModel.findOne({ code: code });
         if (!partner) {
             throw new NotFoundException('Partner with the provided code not found');
         }
-        if (await this.existCoupleAcitve(partner._id.toString())) {
+        if (await this.existCoupleAcitve(partner._id)) {
             throw new ConflictException('Partner is already in an active couple');
         }
 
-            // Tạo cặp đôi mới
         const newCouple = new this.coupleModel({
             user_1: user._id,
             user_2: partner._id,
@@ -60,8 +59,11 @@ export class CoupleService {
         return newCouple;
     }
 
-    private async existCoupleAcitve(userId: string): Promise<boolean> {
-        const coupleUser1 = await this.coupleModel.findOne({ user_1: userId, status: CoupleStatus.ACTIVE });
+    private async existCoupleAcitve(userId: Types.ObjectId): Promise<boolean> {
+        const coupleUser1 = await this.coupleModel.findOne({ $or: [
+            { user_1: userId },
+            { user_2: userId }
+        ], status: CoupleStatus.ACTIVE });
         if (coupleUser1) {
             return true;
         }
