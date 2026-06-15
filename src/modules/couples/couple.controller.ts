@@ -1,6 +1,8 @@
-import { Controller, Get, HttpCode, Param, Patch, Post } from "@nestjs/common";
+import { Controller, Get, HttpCode, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import { CoupleService } from "./couple.service";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 
+@UseGuards(JwtAuthGuard)
 @Controller("couples")
 export class CoupleController {
 
@@ -11,8 +13,8 @@ export class CoupleController {
     // Lấy mã COUPLE của người dùng
     @Get("code/me")
     @HttpCode(200)
-    async getMyCoupleCode() {
-        const userId = "6a2315f160351a3aa19a43f5";
+    async getMyCoupleCode(@Req() req) {
+        const userId = req.user.id;
         const response = await this.coupleService.getMyCoupleCode(userId);
         return {
             success: true,
@@ -39,8 +41,8 @@ export class CoupleController {
     // Liên kết cặp đôi
     @Post("code/:code")
     @HttpCode(201)
-    async linkCouple(@Param("code") code: string) {
-        const userId = "6a2315f160351a3aa19a43f5";
+    async linkCouple(@Param("code") code: string, @Req() req) {
+        const userId = req.user.id;
         const couple = await this.coupleService.linkCouple(userId, code);
         return {
             success: true,
@@ -53,8 +55,8 @@ export class CoupleController {
     // Hủy liên kết cặp đôi
     @Patch("me/unlink")
     @HttpCode(200)
-    async unlinkCouple() {
-        const userId = "6a2315f160351a3aa19a43f5";
+    async unlinkCouple(@Req() req) {
+        const userId = req.user.id;
         const couple = await this.coupleService.unlinkCouple(userId);
         return {
             success: true,
@@ -66,8 +68,8 @@ export class CoupleController {
     // Hiển thị số ngày yêu nhau
     @Get("me/love-days")
     @HttpCode(200)
-    async getLoveDays() {
-        const userId = "6a2315f160351a3aa19a43f5";
+    async getLoveDays(@Req() req) {
+        const userId = req.user.id;
         const couple = await this.coupleService.getLoveDays(userId);
         return {
             success: true,
@@ -78,8 +80,8 @@ export class CoupleController {
 
     @Get("me")
     @HttpCode(200)
-    async getMyCouple() {
-        const userId = "6a2315f160351a3aa19a43f5";
+    async getMyCouple(@Req() req) {
+        const userId = req.user.id;
         const couple = await this.coupleService.getMyCouple(userId);
         return {
             success: true,
