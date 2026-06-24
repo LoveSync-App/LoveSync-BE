@@ -14,6 +14,7 @@ import { DotenvConfigModule } from './config/dotenv.config';
 import { CoupleModule } from './modules/couples/couple.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DeviceModule } from './modules/device/device.module';
+import { UploadModule } from './modules/uploads/upload.module';
 
 @Module({
   imports: [
@@ -29,10 +30,10 @@ import { DeviceModule } from './modules/device/device.module';
     UserModule,
     CoupleModule,
     AuthModule,
-    DeviceModule
+    DeviceModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
-  
+export class AppModule { }
