@@ -1,22 +1,26 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { User, UserDocument } from "../users/schemas/user.schema";
-import { Model } from "mongoose";
+import { Model, Types } from "mongoose";
 import { LoginRequestDto } from "./dto/login-request.dto";
 import { compare, hash } from "bcrypt";
 import { JwtService } from "@nestjs/jwt";
 import { LoginRegisterDto } from "./dto/login-register.dto";
+import { CoupleStatus } from "../couples/enum/couple-status.enum";
+import { Couple, CoupleDocument } from "../couples/schemas/couple.schema";
+import { Conversation, ConversationDocument } from "../chat/schemas/conversation.schema";
+import { Message, MessageDocument } from "../chat/schemas/message.schema";
 
 @Injectable()
 export class AuthService {
     constructor(
         @InjectModel(User.name)
         private readonly userModel: Model<UserDocument>,
-        private readonly jwtService : JwtService
-    ) {}
+        private readonly jwtService: JwtService,
 
-    async login(loginRequestDto : LoginRequestDto)
-    {
+    ) { }
+
+    async login(loginRequestDto: LoginRequestDto) {
         const { email, password } = loginRequestDto;
 
         // const hashPassword = await hash(password, 10);
@@ -59,7 +63,7 @@ export class AuthService {
         }
 
         const existingUser = await this.userModel.findOne({ email: email });
-        
+
         if (existingUser?.password) {
             throw new ConflictException('Email already exists');
         }
@@ -82,7 +86,6 @@ export class AuthService {
             email,
             password: hashPassword,
             avatar: "https://i.pinimg.com/550x/0a/2f/68/0a2f68448ab64c7fb67e75ef410de163.jpg",
-            phone: ""
         });
         await newUser.save();
         return {
@@ -92,4 +95,6 @@ export class AuthService {
             avatar: newUser.avatar,
         };
     }
+
+   
 }

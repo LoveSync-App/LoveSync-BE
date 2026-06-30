@@ -15,6 +15,7 @@ import { CoupleModule } from './modules/couples/couple.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DeviceModule } from './modules/device/device.module';
 import { UploadModule } from './modules/uploads/upload.module';
+import { CallModule } from './modules/calls/call.module';
 
 @Module({
   imports: [
@@ -32,8 +33,9 @@ import { UploadModule } from './modules/uploads/upload.module';
     AuthModule,
     DeviceModule,
     UploadModule,
+    CallModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule {}

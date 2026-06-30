@@ -31,6 +31,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
         ],
         exports: [
             JwtAuthGuard,
+            JwtModule
         ],
         controllers: [
             AuthController

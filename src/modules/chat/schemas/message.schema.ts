@@ -6,7 +6,7 @@ import { MessageType } from "../enum/message-type.enum";
 
 export type MessageDocument = HydratedDocument<Message>;
 
-@Schema()
+@Schema({ timestamps: true })
 export class Message {
     @Prop(
         {
@@ -15,7 +15,7 @@ export class Message {
         }
     )
     conversation: Types.ObjectId;
-    
+
     @Prop(
         {
             type: Types.ObjectId,
@@ -35,6 +35,15 @@ export class Message {
         }
     )
     type: MessageType;
+
+    @Prop({ default: false })
+    isRead: boolean;
+
+    @Prop({ default: Date.now })
+    createdAt: Date;
+
+    @Prop({ default: Date.now })
+    updatedAt: Date;
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);

@@ -9,8 +9,13 @@ export class User {
     @Prop({ required: true, unique: true, trim: true, lowercase: true })
     email: string;
 
-    @Prop({ unique: true, sparse: true })
-    phone: string;
+    @Prop({
+        unique: true,
+        sparse: true,
+        trim: true,
+        default: undefined,
+    })
+    phone?: string;
 
     @Prop({ required: true, trim: true })
     name: string;
