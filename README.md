@@ -28,6 +28,8 @@
 ## Feature documentation
 
 - [LiveKit calling APIs](docs/livekit-calls.md)
+- [Memory sharing API](docs/memories.md)
+- [Chat timeline and pagination](docs/chat-timeline.md)
 
 ## Project setup
 

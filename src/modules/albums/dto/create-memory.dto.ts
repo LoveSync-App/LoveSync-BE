@@ -1,21 +1,21 @@
-import { IsDateString, IsNotEmpty, IsOptional, IsString } from "class-validator";
+import { Transform } from 'class-transformer';
+import { IsDateString, IsNotEmpty, IsString } from 'class-validator';
+
+function trimString(value: unknown): unknown {
+  return typeof value === 'string' ? value.trim() : value;
+}
 
 export class CreateMemoryDto {
-    @IsNotEmpty()
-    file_url: string;
+  @Transform(({ value }: { value: unknown }) => trimString(value))
+  @IsString()
+  @IsNotEmpty()
+  description: string;
 
-    @IsNotEmpty()
-    title: string;
+  @Transform(({ value }: { value: unknown }) => trimString(value))
+  @IsString()
+  @IsNotEmpty()
+  file_url: string;
 
-    @IsOptional()
-    @IsDateString()
-    time?: Date;
-
-    @IsOptional()
-    @IsString()
-    description?: string;
-
-    @IsOptional()
-    @IsString()
-    emotion?: string;
+  @IsDateString()
+  time: string;
 }

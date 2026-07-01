@@ -23,6 +23,7 @@ import { CoupleStatus } from '../couples/enum/couple-status.enum';
 import { Device, DeviceDocument } from '../device/schema/device.schema';
 import { NotificationService } from '../notifications/notification_service';
 import { User, UserDocument } from '../users/schemas/user.schema';
+import { ChatService } from '../chat/chat.service';
 import { CallGateway } from './call.gateway';
 import {
   getAllowedPublishSources,
@@ -59,6 +60,7 @@ export class CallService {
     private readonly deviceModel: Model<DeviceDocument>,
     private readonly notificationService: NotificationService,
     private readonly callGateway: CallGateway,
+    private readonly chatService: ChatService,
   ) {}
 
   async create(userId: string, dto: CreateCallDto) {
@@ -133,6 +135,7 @@ export class CallService {
       throw error;
     }
 
+    await this.syncCallTimeline(call);
     const token = await this.createParticipantToken(call, caller);
     const callPayload = call.toObject();
     this.callGateway.emitToUser(
@@ -182,6 +185,7 @@ export class CallService {
 
     const token = await this.createParticipantToken(call, callee);
     const payload = call.toObject();
+    await this.syncCallTimeline(call);
     this.emitToParticipants(call, 'call:accepted', payload);
     return this.withConnection(payload, token, call.type);
   }
@@ -236,6 +240,7 @@ export class CallService {
     }
 
     const payload = call.toObject();
+    await this.syncCallTimeline(call);
     this.emitToParticipants(call, 'call:ended', payload);
     await this.deleteLiveKitRoom(call.roomName);
     return payload;
@@ -422,6 +427,7 @@ export class CallService {
         call.durationSeconds = this.calculateDuration(call.answeredAt, endedAt);
         call.lastWebhookEventId = event.id;
         await call.save();
+        await this.syncCallTimeline(call);
         this.emitToParticipants(
           call,
           status === CallStatus.ENDED ? 'call:ended' : 'call:missed',
@@ -466,6 +472,7 @@ export class CallService {
     }
 
     const payload = call.toObject();
+    await this.syncCallTimeline(call);
     this.emitToParticipants(call, event, payload);
     await this.deleteLiveKitRoom(call.roomName);
     return payload;
@@ -576,6 +583,7 @@ export class CallService {
       call.status = CallStatus.MISSED;
       call.active = false;
       call.endedAt = endedAt;
+      await this.syncCallTimeline(call);
       this.emitToParticipants(call, 'call:missed', call.toObject());
       void this.deleteLiveKitRoom(call.roomName);
     }
@@ -615,6 +623,26 @@ export class CallService {
       );
     } catch (error) {
       this.logger.warn(`Could not send incoming call notification: ${error}`);
+    }
+  }
+
+  private async syncCallTimeline(call: CallDocument) {
+    try {
+      await this.chatService.syncCallTimelineItem({
+        callId: call._id.toString(),
+        coupleId: call.couple.toString(),
+        callerId: call.caller.toString(),
+        calleeId: call.callee.toString(),
+        callType: call.type,
+        status: call.status,
+        durationSeconds: call.durationSeconds,
+        answeredAt: call.answeredAt,
+        endedAt: call.endedAt,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Could not sync call ${call._id.toString()} to chat: ${error}`,
+      );
     }
   }
 

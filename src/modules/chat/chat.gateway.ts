@@ -1,12 +1,7 @@
 import {
-  ConnectedSocket,
-  MessageBody,
   OnGatewayConnection,
-  OnGatewayDisconnect,
-  SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
-  WsException,
 } from '@nestjs/websockets';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
@@ -20,24 +15,21 @@ import {
   Conversation,
   ConversationDocument,
 } from './schemas/conversation.schema';
-import { Message, MessageDocument } from './schemas/message.schema';
 import { Logger } from '@nestjs/common';
 
 @WebSocketGateway({
   namespace: '/chat',
   cors: {
-    origin: ['http://127.0.0.1:5500', 'http://localhost:5500'],
+    origin: true,
     methods: ['GET', 'POST'],
     credentials: false,
   },
 })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway implements OnGatewayConnection {
   private readonly logger = new Logger(ChatGateway.name);
 
   @WebSocketServer()
   server: Server;
-
-  private readonly userSockets: Map<string, Socket> = new Map();
 
   public constructor(
     private readonly jwtService: JwtService,
@@ -45,9 +37,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly coupleModel: Model<CoupleDocument>,
     @InjectModel(Conversation.name)
     private readonly conversationModel: Model<ConversationDocument>,
-    @InjectModel(Message.name)
-    private readonly messageModel: Model<MessageDocument>
-  ) { }
+  ) {}
 
   async handleConnection(client: Socket) {
     try {
@@ -58,14 +48,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      const payload = await this.jwtService.verifyAsync(token);
-
-      const userId = new Types.ObjectId(payload.sub);
-
-      if (!userId) {
+      const payload = await this.jwtService.verifyAsync<{ sub?: string }>(
+        token,
+      );
+      if (!payload.sub || !Types.ObjectId.isValid(payload.sub)) {
         this.disconnectClient(client, 'JWT payload missing sub');
         return;
       }
+      const userId = new Types.ObjectId(payload.sub);
 
       const couple = await this.coupleModel.findOne({
         $or: [{ user_1: userId }, { user_2: userId }],
@@ -73,7 +63,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       if (!couple) {
-        this.disconnectClient(client, `No active couple for user ${userId}`);
+        this.disconnectClient(
+          client,
+          `No active couple for user ${userId.toString()}`,
+        );
         return;
       }
 
@@ -87,41 +80,35 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
       }
 
-      this.userSockets.set(userId.toString(), client);
-
-      client.data.userId = userId;
-      client.join(`users:${userId}`);
-
-      client.join(`conversations:${conversation._id.toString()}`);
-      this.logger.log(`Client ${client.id} connected as user ${userId}`);
+      await client.join(`users:${userId.toString()}`);
+      await client.join(`conversations:${conversation._id.toString()}`);
+      this.logger.log(
+        `Client ${client.id} connected as user ${userId.toString()}`,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.disconnectClient(client, `Connection failed: ${message}`);
     }
   }
 
-  handleDisconnect(client: Socket) {
-    const userId = client.data.userId;
-    if (userId) {
-      this.userSockets.delete(userId);
-    }
-  }
-
-  checkUserConnection(userId: string): boolean {
-    return this.userSockets.has(userId);
-  }
-
-  sendMassageToConversation(conversationId: string, message: Message) {
+  sendMessageToConversation(conversationId: string, message: unknown) {
     this.server
       .to(`conversations:${conversationId}`)
       .emit('message:new', message);
   }
 
+  sendTimelineEvent(conversationId: string, event: string, item: unknown) {
+    this.server.to(`conversations:${conversationId}`).emit(event, item);
+  }
+
   private extractToken(client: Socket): string | undefined {
-    const authToken = client.handshake.auth?.token;
+    const handshakeAuth = client.handshake.auth as Record<string, unknown>;
+    const authToken = handshakeAuth.token;
     const queryToken = client.handshake.query?.token;
     const authorization = client.handshake.headers.authorization;
-    const rawToken = Array.isArray(queryToken) ? queryToken[0] : authToken ?? queryToken;
+    const rawToken = Array.isArray(queryToken)
+      ? queryToken[0]
+      : (authToken ?? queryToken);
 
     if (typeof rawToken === 'string' && rawToken.trim()) {
       return this.normalizeBearerToken(rawToken);
@@ -143,6 +130,4 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.emit('chat:error', { message: reason });
     client.disconnect(true);
   }
-
-
 }

@@ -38,12 +38,10 @@ import { DeviceModule } from '../device/device.module';
     AuthModule,
     UserModule,
     NotificationModule,
-    DeviceModule
+    DeviceModule,
   ],
   providers: [ChatGateway, ChatService],
-  controllers: [
-    ChatController
-  ],
-  exports: [MongooseModule],
+  controllers: [ChatController],
+  exports: [MongooseModule, ChatService],
 })
-export class ChatModule { }
+export class ChatModule {}
