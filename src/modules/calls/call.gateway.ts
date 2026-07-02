@@ -2,11 +2,16 @@ import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
   OnGatewayConnection,
+  OnGatewayDisconnect,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import {
+  AuthSessionService,
+  SessionJwtPayload,
+} from '../auth/auth-session.service';
 
 @WebSocketGateway({
   namespace: '/calls',
@@ -15,11 +20,16 @@ import { Server, Socket } from 'socket.io';
     credentials: true,
   },
 })
-export class CallGateway implements OnGatewayConnection {
+export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  public constructor(private readonly jwtService: JwtService) {}
+  private readonly socketUsers = new Map<string, string>();
+
+  public constructor(
+    private readonly jwtService: JwtService,
+    private readonly authSessionService: AuthSessionService,
+  ) {}
 
   async handleConnection(client: Socket) {
     try {
@@ -28,19 +38,30 @@ export class CallGateway implements OnGatewayConnection {
         throw new Error('Missing token');
       }
 
-      const payload = await this.jwtService.verifyAsync<{ sub?: string }>(
-        token,
-      );
-      if (!payload.sub) {
-        throw new Error('JWT payload missing sub');
-      }
+      const payload =
+        await this.jwtService.verifyAsync<SessionJwtPayload>(token);
+      const session = await this.authSessionService.validatePayload(payload);
 
-      await client.join(this.userRoom(String(payload.sub)));
+      await client.join(this.userRoom(session.userId));
+      this.socketUsers.set(client.id, session.userId);
+      this.authSessionService.registerSocket(
+        session.userId,
+        session.sessionId,
+        client,
+      );
       client.emit('calls:ready');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unauthorized';
       client.emit('calls:error', { message });
       client.disconnect(true);
+    }
+  }
+
+  handleDisconnect(client: Socket) {
+    const userId = this.socketUsers.get(client.id);
+    this.socketUsers.delete(client.id);
+    if (userId) {
+      this.authSessionService.unregisterSocket(userId, client);
     }
   }
 

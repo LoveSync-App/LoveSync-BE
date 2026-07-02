@@ -61,3 +61,4 @@ docs
 !docs/
 docs/*
 !docs/calendar-events.md
+!docs/authentication.md

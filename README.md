@@ -32,6 +32,7 @@
 - [Chat timeline and pagination](docs/chat-timeline.md)
 - [Location sharing API](docs/location-sharing.md)
 - [Calendar events API](docs/calendar-events.md)
+- [Authentication and single-session API](docs/authentication.md)
 
 ## Project setup
 

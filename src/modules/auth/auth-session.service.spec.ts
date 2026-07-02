@@ -1,0 +1,101 @@
+import { UnauthorizedException } from '@nestjs/common';
+import { Model, Types } from 'mongoose';
+import { Socket } from 'socket.io';
+import { User } from '../users/schemas/user.schema';
+import { AuthSessionService } from './auth-session.service';
+
+describe('AuthSessionService', () => {
+  const userId = new Types.ObjectId().toString();
+  let selectPreviousUser: jest.Mock;
+  let selectActiveUser: jest.Mock;
+  let userModel: {
+    findByIdAndUpdate: jest.Mock;
+    findOne: jest.Mock;
+    updateOne: jest.Mock;
+  };
+  let service: AuthSessionService;
+
+  beforeEach(() => {
+    selectPreviousUser = jest.fn();
+    selectActiveUser = jest.fn();
+    userModel = {
+      findByIdAndUpdate: jest.fn(() => ({ select: selectPreviousUser })),
+      findOne: jest.fn(() => ({ select: selectActiveUser })),
+      updateOne: jest.fn(),
+    };
+    service = new AuthSessionService(userModel as unknown as Model<User>);
+  });
+
+  it('disconnects sockets belonging to the previous session', async () => {
+    selectPreviousUser.mockResolvedValue({
+      _id: new Types.ObjectId(userId),
+      activeSessionId: 'old-session',
+    });
+    const emit = jest.fn();
+    const disconnect = jest.fn();
+    const socket = {
+      id: 'socket-1',
+      nsp: { name: '/chat' },
+      emit,
+      disconnect,
+    } as unknown as Socket;
+    service.registerSocket(userId, 'old-session', socket);
+
+    const newSessionId = await service.startSession(userId);
+
+    expect(newSessionId).not.toBe('old-session');
+    expect(emit).toHaveBeenCalledWith('auth:session-revoked', {
+      code: 'SIGNED_IN_ON_ANOTHER_DEVICE',
+      message: 'This account was signed in on another device',
+    });
+    expect(disconnect).toHaveBeenCalledWith(true);
+  });
+
+  it('accepts only the active session stored on the user', async () => {
+    selectActiveUser.mockResolvedValue({
+      _id: new Types.ObjectId(userId),
+      email: 'user@example.com',
+    });
+
+    const result = await service.validatePayload({
+      sub: userId,
+      sid: 'active-session',
+    });
+
+    expect(userModel.findOne).toHaveBeenCalledWith({
+      _id: userId,
+      activeSessionId: 'active-session',
+      status: 'ACTIVE',
+    });
+    expect(result.userId).toBe(userId);
+    expect(result.sessionId).toBe('active-session');
+  });
+
+  it('rejects legacy tokens without a session id', async () => {
+    await expect(
+      service.validatePayload({ sub: userId }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(userModel.findOne).not.toHaveBeenCalled();
+  });
+
+  it('clears and disconnects the current session on logout', async () => {
+    userModel.updateOne.mockResolvedValue({ modifiedCount: 1 });
+    const disconnect = jest.fn();
+    const socket = {
+      id: 'socket-2',
+      nsp: { name: '/calls' },
+      emit: jest.fn(),
+      disconnect,
+    } as unknown as Socket;
+    service.registerSocket(userId, 'current-session', socket);
+
+    await expect(service.logout(userId, 'current-session')).resolves.toEqual({
+      loggedOut: true,
+    });
+    expect(userModel.updateOne).toHaveBeenCalledWith(
+      { _id: userId, activeSessionId: 'current-session' },
+      { $unset: { activeSessionId: 1 } },
+    );
+    expect(disconnect).toHaveBeenCalledWith(true);
+  });
+});

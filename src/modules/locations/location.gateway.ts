@@ -19,6 +19,10 @@ import { UpdateLiveLocationDto } from './dto/update-live-location.dto';
 import { LocationRealtimeService } from './location-realtime.service';
 import { LocationService } from './location.service';
 import { PresenceService } from '../presence/presence.service';
+import {
+  AuthSessionService,
+  SessionJwtPayload,
+} from '../auth/auth-session.service';
 
 type LocationUpdateAck = (response: {
   ok: boolean;
@@ -51,6 +55,7 @@ export class LocationGateway
     private readonly locationService: LocationService,
     private readonly locationRealtime: LocationRealtimeService,
     private readonly presenceService: PresenceService,
+    private readonly authSessionService: AuthSessionService,
   ) {}
 
   afterInit(server: Server) {
@@ -64,17 +69,19 @@ export class LocationGateway
         throw new Error('Missing token');
       }
 
-      const payload = await this.jwtService.verifyAsync<{ sub?: string }>(
-        token,
-      );
-      if (!payload.sub) {
-        throw new Error('JWT payload missing sub');
-      }
+      const payload =
+        await this.jwtService.verifyAsync<SessionJwtPayload>(token);
+      const session = await this.authSessionService.validatePayload(payload);
 
-      await client.join(this.userRoom(payload.sub));
-      this.socketUsers.set(client.id, payload.sub);
+      await client.join(this.userRoom(session.userId));
+      this.socketUsers.set(client.id, session.userId);
+      this.authSessionService.registerSocket(
+        session.userId,
+        session.sessionId,
+        client,
+      );
       this.presenceService.registerConnection(
-        payload.sub,
+        session.userId,
         `locations:${client.id}`,
       );
       client.emit('locations:ready');
@@ -90,6 +97,7 @@ export class LocationGateway
     const userId = this.socketUsers.get(client.id);
     this.socketUsers.delete(client.id);
     if (userId) {
+      this.authSessionService.unregisterSocket(userId, client);
       this.presenceService.unregisterConnection(
         userId,
         `locations:${client.id}`,

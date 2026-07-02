@@ -18,6 +18,10 @@ import {
 } from './schemas/conversation.schema';
 import { Logger, OnModuleDestroy } from '@nestjs/common';
 import { PresencePayload, PresenceService } from '../presence/presence.service';
+import {
+  AuthSessionService,
+  SessionJwtPayload,
+} from '../auth/auth-session.service';
 
 @WebSocketGateway({
   namespace: '/chat',
@@ -45,6 +49,7 @@ export class ChatGateway
     @InjectModel(Conversation.name)
     private readonly conversationModel: Model<ConversationDocument>,
     private readonly presenceService: PresenceService,
+    private readonly authSessionService: AuthSessionService,
   ) {
     this.unsubscribePresence = this.presenceService.subscribe(
       (userId, payload) => this.broadcastPresenceToPartner(userId, payload),
@@ -60,14 +65,10 @@ export class ChatGateway
         return;
       }
 
-      const payload = await this.jwtService.verifyAsync<{ sub?: string }>(
-        token,
-      );
-      if (!payload.sub || !Types.ObjectId.isValid(payload.sub)) {
-        this.disconnectClient(client, 'JWT payload missing sub');
-        return;
-      }
-      const userId = new Types.ObjectId(payload.sub);
+      const payload =
+        await this.jwtService.verifyAsync<SessionJwtPayload>(token);
+      const session = await this.authSessionService.validatePayload(payload);
+      const userId = new Types.ObjectId(session.userId);
 
       const couple = await this.coupleModel.findOne({
         $or: [{ user_1: userId }, { user_2: userId }],
@@ -94,9 +95,14 @@ export class ChatGateway
 
       await client.join(`users:${userId.toString()}`);
       await client.join(`conversations:${conversation._id.toString()}`);
-      this.socketUsers.set(client.id, userId.toString());
+      this.socketUsers.set(client.id, session.userId);
+      this.authSessionService.registerSocket(
+        session.userId,
+        session.sessionId,
+        client,
+      );
       this.presenceService.registerConnection(
-        userId.toString(),
+        session.userId,
         `chat:${client.id}`,
       );
       const partnerId = couple.user_1.equals(userId)
@@ -120,6 +126,7 @@ export class ChatGateway
       return;
     }
     this.socketUsers.delete(client.id);
+    this.authSessionService.unregisterSocket(userId, client);
     this.presenceService.unregisterConnection(userId, `chat:${client.id}`);
   }
 
