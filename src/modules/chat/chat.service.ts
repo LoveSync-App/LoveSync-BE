@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -27,6 +28,7 @@ import { NotificationService } from '../notifications/notification_service';
 import { GetTimelineQueryDto } from './dto/get-timeline-query.dto';
 import type { CallTimelineEvent } from './interfaces/call-timeline-event.interface';
 import { SendLocationMessageDto } from './dto/send-location-message.dto';
+import { E2eeService } from '../e2ee/e2ee.service';
 
 @Injectable()
 export class ChatService {
@@ -47,20 +49,25 @@ export class ChatService {
     private readonly deviceModel: Model<DeviceDocument>,
     private readonly notificationService: NotificationService,
     private readonly chatGateway: ChatGateway,
+    private readonly e2eeService: E2eeService,
   ) {}
 
   public async sendMessage(senderId: string, sendMessageDto: SendMessageDto) {
     const senderObjectId = new Types.ObjectId(senderId);
     const content = sendMessageDto.message?.trim() ?? '';
+    const encryption = sendMessageDto.encryption;
     const attachmentUrls = this.normalizeAttachmentUrls(sendMessageDto);
 
-    if (!content && attachmentUrls.length === 0) {
+    if (content && encryption) {
+      throw new BadRequestException(
+        'Do not send plaintext together with encrypted content',
+      );
+    }
+    if (!content && !encryption && attachmentUrls.length === 0) {
       throw new BadRequestException('Message or attachments is required');
     }
 
-    this.logger.log(
-      `Sending message from senderId: ${senderId} with content: ${content}`,
-    );
+    this.logger.log(`Sending message from senderId: ${senderId}`);
     const couple = await this.coupleModel.findOne({
       $or: [{ user_1: senderObjectId }, { user_2: senderObjectId }],
       status: CoupleStatus.ACTIVE,
@@ -68,6 +75,37 @@ export class ChatService {
 
     if (!couple) {
       throw new Error('Couple not found');
+    }
+    const partnerId = couple.user_1.equals(senderObjectId)
+      ? couple.user_2
+      : couple.user_1;
+    const keyVersions = await this.e2eeService.getPairKeyVersions(
+      senderId,
+      partnerId,
+    );
+    const bothUsersHaveKeys =
+      keyVersions.senderKeyVersion !== undefined &&
+      keyVersions.recipientKeyVersion !== undefined;
+    if (content && bothUsersHaveKeys) {
+      throw new BadRequestException(
+        'Encrypted content is required when both users have E2EE keys',
+      );
+    }
+    if (encryption) {
+      this.validateEncryptedMessageShape(encryption);
+      if (!bothUsersHaveKeys) {
+        throw new ConflictException(
+          'Both users must configure E2EE keys before encrypted messaging',
+        );
+      }
+      if (
+        encryption.senderKeyVersion !== keyVersions.senderKeyVersion ||
+        encryption.recipientKeyVersion !== keyVersions.recipientKeyVersion
+      ) {
+        throw new ConflictException(
+          'E2EE key version changed; refresh public keys and encrypt again',
+        );
+      }
     }
     let conversation = await this.conversationModel.findOne({
       couple: couple._id,
@@ -82,7 +120,8 @@ export class ChatService {
     const message = new this.messageModel({
       conversation: conversation._id,
       sender: senderObjectId,
-      content: content,
+      content: encryption ? '' : content,
+      encryption,
       type: attachmentUrls.length > 0 ? MessageType.IMAGE : MessageType.TEXT,
     });
     await message.save();
@@ -107,22 +146,14 @@ export class ChatService {
       response,
     );
 
-    const partnerId =
-      couple.user_1.toString() === senderId
-        ? couple.user_2.toString()
-        : couple.user_1.toString();
     const fcmTokenPartner = await this.deviceModel.findOne({
-      user: new Types.ObjectId(partnerId),
+      user: partnerId,
     });
     const fcmToken = fcmTokenPartner?.token;
     this.logger.log(
       `Sending notification to partner with FCM token: ${fcmToken}`,
     );
     if (fcmToken) {
-      const partnerId =
-        couple.user_1.toString() === senderId
-          ? couple.user_2.toString()
-          : couple.user_1.toString();
       const partner = await this.userModel.findById(partnerId);
       if (partner) {
         await this.notificationService.sendNotification(
@@ -133,6 +164,27 @@ export class ChatService {
       }
     }
     return response;
+  }
+
+  private validateEncryptedMessageShape(
+    encryption: NonNullable<SendMessageDto['encryption']>,
+  ) {
+    if (Buffer.from(encryption.iv, 'base64').length !== 12) {
+      throw new BadRequestException('AES-GCM IV must be exactly 12 bytes');
+    }
+    if (Buffer.from(encryption.authTag, 'base64').length !== 16) {
+      throw new BadRequestException(
+        'AES-GCM authentication tag must be exactly 16 bytes',
+      );
+    }
+    if (
+      Buffer.from(encryption.senderEncryptedKey, 'base64').length < 256 ||
+      Buffer.from(encryption.recipientEncryptedKey, 'base64').length < 256
+    ) {
+      throw new BadRequestException(
+        'RSA encrypted message keys must use keys of at least 2048 bits',
+      );
+    }
   }
 
   async sendLocationMessage(senderId: string, dto: SendLocationMessageDto) {

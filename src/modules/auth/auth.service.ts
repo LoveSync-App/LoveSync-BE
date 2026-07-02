@@ -195,6 +195,7 @@ export class AuthService {
       name: user.name,
       avatar: user.avatar,
       authProviders: user.authProviders ?? [],
+      e2eeSetupRequired: !user.hasE2eeKeys,
     };
   }
 

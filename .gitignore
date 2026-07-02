@@ -62,3 +62,4 @@ docs
 docs/*
 !docs/calendar-events.md
 !docs/authentication.md
+!docs/e2ee-messaging.md

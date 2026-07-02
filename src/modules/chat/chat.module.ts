@@ -18,6 +18,7 @@ import { UserModule } from '../users/user.module';
 import { NotificationModule } from '../notifications/notification.module';
 import { DeviceModule } from '../device/device.module';
 import { PresenceModule } from '../presence/presence.module';
+import { E2eeModule } from '../e2ee/e2ee.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { PresenceModule } from '../presence/presence.module';
     NotificationModule,
     DeviceModule,
     PresenceModule,
+    E2eeModule,
   ],
   providers: [ChatGateway, ChatService],
   controllers: [ChatController],

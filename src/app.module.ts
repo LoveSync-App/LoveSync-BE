@@ -16,6 +16,7 @@ import { UploadModule } from './modules/uploads/upload.module';
 import { CallModule } from './modules/calls/call.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CalendarModule } from './modules/calendar/calendar.module';
+import { E2eeModule } from './modules/e2ee/e2ee.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { CalendarModule } from './modules/calendar/calendar.module';
     DeviceModule,
     UploadModule,
     CallModule,
+    E2eeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

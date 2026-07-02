@@ -3,8 +3,38 @@ import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 import { Conversation } from './conversation.schema';
 import { User } from '../../users/schemas/user.schema';
 import { MessageType } from '../enum/message-type.enum';
+import { MessageEncryptionAlgorithm } from '../../e2ee/enum/e2ee-algorithm.enum';
 
 export type MessageDocument = HydratedDocument<Message>;
+
+@Schema({ _id: false })
+export class MessageEncryption {
+  @Prop({ required: true, type: String, enum: MessageEncryptionAlgorithm })
+  algorithm: MessageEncryptionAlgorithm.RSA_OAEP_256_A256GCM;
+
+  @Prop({ required: true })
+  ciphertext: string;
+
+  @Prop({ required: true })
+  iv: string;
+
+  @Prop({ required: true })
+  authTag: string;
+
+  @Prop({ required: true })
+  senderEncryptedKey: string;
+
+  @Prop({ required: true })
+  recipientEncryptedKey: string;
+
+  @Prop({ required: true, min: 1 })
+  senderKeyVersion: number;
+
+  @Prop({ required: true, min: 1 })
+  recipientKeyVersion: number;
+}
+
+const MessageEncryptionSchema = SchemaFactory.createForClass(MessageEncryption);
 
 @Schema({ timestamps: true, versionKey: false })
 export class Message {
@@ -25,6 +55,9 @@ export class Message {
 
   @Prop({ trim: true, default: '' })
   content: string;
+
+  @Prop({ type: MessageEncryptionSchema })
+  encryption?: MessageEncryption;
 
   @Prop({
     required: true,

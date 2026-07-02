@@ -136,7 +136,8 @@ Both login endpoints return:
       "email": "user@example.com",
       "name": "Love Sync",
       "avatar": "https://example.com/avatar.jpg",
-      "authProviders": ["password", "google.com"]
+      "authProviders": ["password", "google.com"],
+      "e2eeSetupRequired": true
     },
     "loginProvider": "google.com",
     "accessToken": "<application JWT>"
@@ -145,6 +146,8 @@ Both login endpoints return:
 ```
 
 Store `data.accessToken` and use it for REST and Socket.IO authentication.
+When `e2eeSetupRequired` is `true`, continue with the key setup flow documented
+in [End-to-end encrypted messaging](e2ee-messaging.md).
 
 ## One active session
 

@@ -33,6 +33,7 @@
 - [Location sharing API](docs/location-sharing.md)
 - [Calendar events API](docs/calendar-events.md)
 - [Authentication and single-session API](docs/authentication.md)
+- [End-to-end encrypted messaging API](docs/e2ee-messaging.md)
 
 ## Project setup
 

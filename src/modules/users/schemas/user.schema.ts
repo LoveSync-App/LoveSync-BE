@@ -44,6 +44,9 @@ export class User {
   @Prop()
   lastLoginAt?: Date;
 
+  @Prop({ default: false })
+  hasE2eeKeys: boolean;
+
   @Prop({
     type: String,
     enum: UserStatus,
