@@ -12,6 +12,7 @@ import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SendMessageDto } from './dto/send-message.dto';
 import { GetTimelineQueryDto } from './dto/get-timeline-query.dto';
+import { SendLocationMessageDto } from './dto/send-location-message.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('chat')
@@ -30,6 +31,14 @@ export class ChatController {
     );
 
     return this.chatService.sendMessage(userId, body);
+  }
+
+  @Post('location')
+  sendLocation(
+    @Request() req: { user: { id: string } },
+    @Body() body: SendLocationMessageDto,
+  ) {
+    return this.chatService.sendLocationMessage(req.user.id, body);
   }
 
   @Get()

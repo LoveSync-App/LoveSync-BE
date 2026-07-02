@@ -26,6 +26,7 @@ import { Device, DeviceDocument } from '../device/schema/device.schema';
 import { NotificationService } from '../notifications/notification_service';
 import { GetTimelineQueryDto } from './dto/get-timeline-query.dto';
 import type { CallTimelineEvent } from './interfaces/call-timeline-event.interface';
+import { SendLocationMessageDto } from './dto/send-location-message.dto';
 
 @Injectable()
 export class ChatService {
@@ -130,6 +131,84 @@ export class ChatService {
           `${partner.name} vừa gửi tin nhắn cho bạn`,
         );
       }
+    }
+    return response;
+  }
+
+  async sendLocationMessage(senderId: string, dto: SendLocationMessageDto) {
+    const senderObjectId = new Types.ObjectId(senderId);
+    const couple = await this.coupleModel.findOne({
+      $or: [{ user_1: senderObjectId }, { user_2: senderObjectId }],
+      status: CoupleStatus.ACTIVE,
+    });
+    if (!couple) {
+      throw new NotFoundException('Active couple not found');
+    }
+
+    let conversation = await this.conversationModel.findOne({
+      couple: couple._id,
+    });
+    if (!conversation) {
+      conversation = await this.conversationModel.create({
+        couple: couple._id,
+      });
+    }
+
+    const message = await this.messageModel.create({
+      conversation: conversation._id,
+      sender: senderObjectId,
+      content: dto.label?.trim() || dto.address?.trim() || '',
+      type: MessageType.LOCATION,
+      payload: {
+        mode: 'snapshot',
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        accuracy: dto.accuracy ?? null,
+        heading: dto.heading ?? null,
+        speed: dto.speed ?? null,
+        address: dto.address?.trim() || null,
+        label: dto.label?.trim() || null,
+        capturedAt: dto.capturedAt ? new Date(dto.capturedAt) : new Date(),
+      },
+    });
+    const response = {
+      ...message.toObject(),
+      attachments: [],
+    };
+    this.chatGateway.sendMessageToConversation(
+      conversation._id.toString(),
+      response,
+    );
+    const partnerId = couple.user_1.equals(senderObjectId)
+      ? couple.user_2
+      : couple.user_1;
+    const [partnerDevice, sender] = await Promise.all([
+      this.deviceModel.findOne({ user: partnerId }).lean(),
+      this.userModel.findById(senderObjectId).select('name').lean(),
+    ]);
+    if (partnerDevice?.token && sender) {
+      void this.notificationService
+        .sendNotification(
+          partnerDevice.token,
+          'LoveSync',
+          `${sender.name} đã gửi một vị trí cho bạn`,
+          {
+            type: 'location_message',
+            messageId: message._id.toString(),
+            senderId,
+          },
+        )
+        .catch((error: unknown) => {
+          const message =
+            error instanceof Error
+              ? error.message
+              : typeof error === 'string'
+                ? error
+                : 'Unknown error';
+          this.logger.warn(
+            `Could not send location message notification: ${message}`,
+          );
+        });
     }
     return response;
   }

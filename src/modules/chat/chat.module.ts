@@ -17,6 +17,7 @@ import { AuthModule } from '../auth/auth.module';
 import { UserModule } from '../users/user.module';
 import { NotificationModule } from '../notifications/notification.module';
 import { DeviceModule } from '../device/device.module';
+import { PresenceModule } from '../presence/presence.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { DeviceModule } from '../device/device.module';
     UserModule,
     NotificationModule,
     DeviceModule,
+    PresenceModule,
   ],
   providers: [ChatGateway, ChatService],
   controllers: [ChatController],
