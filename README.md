@@ -31,6 +31,7 @@
 - [Memory sharing API](docs/memories.md)
 - [Chat timeline and pagination](docs/chat-timeline.md)
 - [Location sharing API](docs/location-sharing.md)
+- [Calendar events API](docs/calendar-events.md)
 
 ## Project setup
 

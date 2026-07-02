@@ -58,3 +58,6 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 firebase-service-account.json
 
 docs
+!docs/
+docs/*
+!docs/calendar-events.md
