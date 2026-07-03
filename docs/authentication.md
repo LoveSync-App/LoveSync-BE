@@ -124,7 +124,7 @@ API.
 
 ## Login response
 
-Both login endpoints return:
+Both login endpoints return an access token and a refresh token:
 
 ```json
 {
@@ -140,21 +140,63 @@ Both login endpoints return:
       "e2eeSetupRequired": true
     },
     "loginProvider": "google.com",
-    "accessToken": "<application JWT>"
+    "tokenType": "Bearer",
+    "accessToken": "<short-lived application JWT>",
+    "refreshToken": "<long-lived refresh JWT>"
   }
 }
 ```
 
-Store `data.accessToken` and use it for REST and Socket.IO authentication.
+Store `data.accessToken` and use it for REST and Socket.IO authentication. Store
+`data.refreshToken` securely and use it only with `/auth/refresh`.
 When `e2eeSetupRequired` is `true`, continue with the key setup flow documented
 in [End-to-end encrypted messaging](e2ee-messaging.md).
+
+## Refresh token
+
+When a protected REST API returns `401 Unauthorized` because the access token is
+expired, the app can request a new token pair:
+
+```http
+POST /auth/refresh
+Content-Type: application/json
+```
+
+```json
+{
+  "refreshToken": "<current refresh token>"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "tokenType": "Bearer",
+    "accessToken": "<new access token>",
+    "refreshToken": "<new refresh token>"
+  }
+}
+```
+
+Refresh tokens are rotating one-time tokens. After a successful refresh, the old
+refresh token is invalid and the app must replace both stored tokens with the
+new values immediately. If the refresh token is expired, already used, logged
+out, or belongs to a session replaced by another device, the endpoint returns
+`401 Unauthorized`; the app should clear local auth state and navigate to login.
+
+Socket.IO connections cannot use a refresh token. Reconnect sockets with the new
+`accessToken` after refresh.
 
 ## One active session
 
 Every successful login creates a new session ID and embeds it in the application
-JWT. The previous JWT then receives `401 Unauthorized` on protected REST APIs.
-Tokens created before this feature do not contain a session ID and are also
-rejected, so existing users must sign in again after deployment.
+JWT and refresh token. The previous access token and refresh token then receive
+`401 Unauthorized`. Tokens created before this feature do not contain a session
+ID and are also rejected, so existing users must sign in again after deployment.
 
 The `/chat`, `/calls`, and `/locations` Socket.IO namespaces validate the same
 session. When an account signs in again, connected sockets from the old session
@@ -205,6 +247,19 @@ Response:
 ```
 
 Logout invalidates the current JWT and disconnects its active sockets.
+It also invalidates the current refresh token.
+
+## Environment
+
+```env
+JWT_SECRET_KEY=...
+JWT_EXPIRES_IN=15m
+JWT_REFRESH_SECRET_KEY=...
+JWT_REFRESH_EXPIRES_IN=30d
+```
+
+Use a different strong secret for `JWT_REFRESH_SECRET_KEY`; do not reuse
+`JWT_SECRET_KEY`.
 
 ## Firebase server configuration
 

@@ -41,6 +41,9 @@ export class User {
   @Prop({ select: false })
   activeSessionId?: string;
 
+  @Prop({ select: false })
+  refreshTokenHash?: string;
+
   @Prop()
   lastLoginAt?: Date;
 

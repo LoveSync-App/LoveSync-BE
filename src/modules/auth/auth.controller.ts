@@ -13,6 +13,7 @@ import { GoogleLoginDto } from './dto/google-login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthSessionService } from './auth-session.service';
 import { SetPasswordDto } from './dto/set-password.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -36,6 +37,17 @@ export class AuthController {
   @HttpCode(200)
   async loginWithGoogle(@Body() dto: GoogleLoginDto) {
     const response = await this.authService.loginWithGoogle(dto);
+    return {
+      success: true,
+      statusCode: 200,
+      data: response,
+    };
+  }
+
+  @Post('refresh')
+  @HttpCode(200)
+  async refresh(@Body() dto: RefreshTokenDto) {
+    const response = await this.authService.refresh(dto);
     return {
       success: true,
       statusCode: 200,

@@ -10,6 +10,8 @@ export type SessionJwtPayload = {
   sub?: string;
   email?: string;
   sid?: string;
+  typ?: 'access' | 'refresh';
+  jti?: string;
 };
 
 type RegisteredSocket = {
@@ -39,6 +41,9 @@ export class AuthSessionService {
             activeSessionId: sessionId,
             lastLoginAt: new Date(),
           },
+          $unset: {
+            refreshTokenHash: 1,
+          },
         },
         { new: false },
       )
@@ -57,7 +62,12 @@ export class AuthSessionService {
   }
 
   async validatePayload(payload: SessionJwtPayload) {
-    if (!payload.sub || !payload.sid || !Types.ObjectId.isValid(payload.sub)) {
+    if (
+      !payload.sub ||
+      !payload.sid ||
+      payload.typ === 'refresh' ||
+      !Types.ObjectId.isValid(payload.sub)
+    ) {
       throw new UnauthorizedException('Invalid authentication session');
     }
     const user = await this.userModel
@@ -77,6 +87,56 @@ export class AuthSessionService {
       userId: user._id.toString(),
       sessionId: payload.sid,
     };
+  }
+
+  async storeRefreshToken(
+    userId: string,
+    sessionId: string,
+    refreshTokenHash: string,
+  ) {
+    const result = await this.userModel.updateOne(
+      { _id: userId, activeSessionId: sessionId },
+      { $set: { refreshTokenHash } },
+    );
+    if (result.matchedCount === 0) {
+      throw new UnauthorizedException(
+        'Authentication session is no longer active',
+      );
+    }
+  }
+
+  async rotateRefreshToken(
+    payload: SessionJwtPayload,
+    currentRefreshTokenHash: string,
+    nextRefreshTokenHash: string,
+  ) {
+    if (
+      !payload.sub ||
+      !payload.sid ||
+      payload.typ !== 'refresh' ||
+      !payload.jti ||
+      !Types.ObjectId.isValid(payload.sub)
+    ) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    const result = await this.userModel.updateOne(
+      {
+        _id: payload.sub,
+        activeSessionId: payload.sid,
+        refreshTokenHash: currentRefreshTokenHash,
+        status: UserStatus.ACTIVE,
+      },
+      {
+        $set: {
+          refreshTokenHash: nextRefreshTokenHash,
+        },
+      },
+    );
+    if (result.modifiedCount === 0) {
+      throw new UnauthorizedException(
+        'Refresh token is expired or already used',
+      );
+    }
   }
 
   registerSocket(userId: string, sessionId: string, socket: Socket) {
@@ -102,7 +162,7 @@ export class AuthSessionService {
   async logout(userId: string, sessionId: string) {
     const result = await this.userModel.updateOne(
       { _id: userId, activeSessionId: sessionId },
-      { $unset: { activeSessionId: 1 } },
+      { $unset: { activeSessionId: 1, refreshTokenHash: 1 } },
     );
     if (result.modifiedCount > 0) {
       this.disconnectSessionSockets(userId, sessionId);

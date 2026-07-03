@@ -2,21 +2,25 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { compare, hash } from 'bcrypt';
+import { createHash, randomUUID } from 'crypto';
 import { DecodedIdToken } from 'firebase-admin/auth';
 import { Model } from 'mongoose';
 import { UserStatus } from '../users/enum/user-role.enum';
 import { User, UserDocument } from '../users/schemas/user.schema';
-import { AuthSessionService } from './auth-session.service';
+import { AuthSessionService, SessionJwtPayload } from './auth-session.service';
 import { FirebaseIdentityService } from './firebase-identity.service';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { LoginRequestDto } from './dto/login-request.dto';
 import { LoginRegisterDto } from './dto/login-register.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { AuthProvider } from './enum/auth-provider.enum';
 
 @Injectable()
@@ -27,6 +31,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly authSessionService: AuthSessionService,
     private readonly firebaseIdentityService: FirebaseIdentityService,
+    private readonly configService: ConfigService,
   ) {}
 
   async login(dto: LoginRequestDto) {
@@ -169,6 +174,41 @@ export class AuthService {
     return this.toUserResponse(user);
   }
 
+  async refresh(dto: RefreshTokenDto) {
+    let payload: SessionJwtPayload;
+    try {
+      payload = await this.jwtService.verifyAsync<SessionJwtPayload>(
+        dto.refreshToken,
+        {
+          secret: this.getRefreshTokenSecret(),
+        },
+      );
+    } catch {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+    if (
+      payload.typ !== 'refresh' ||
+      !payload.sub ||
+      !payload.email ||
+      !payload.sid ||
+      !payload.jti
+    ) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const tokens = await this.createTokenPair(
+      payload.sub,
+      payload.email,
+      payload.sid,
+    );
+    await this.authSessionService.rotateRefreshToken(
+      payload,
+      this.hashRefreshToken(dto.refreshToken),
+      this.hashRefreshToken(tokens.refreshToken),
+    );
+    return tokens;
+  }
+
   private async issueLoginResponse(
     user: UserDocument,
     loginProvider: AuthProvider,
@@ -176,16 +216,66 @@ export class AuthService {
     const sessionId = await this.authSessionService.startSession(
       user._id.toString(),
     );
-    const accessToken = await this.jwtService.signAsync({
-      sub: user._id.toString(),
-      email: user.email,
-      sid: sessionId,
-    });
+    const tokens = await this.createTokenPair(
+      user._id.toString(),
+      user.email,
+      sessionId,
+    );
+    await this.authSessionService.storeRefreshToken(
+      user._id.toString(),
+      sessionId,
+      this.hashRefreshToken(tokens.refreshToken),
+    );
     return {
       user: this.toUserResponse(user),
       loginProvider,
-      accessToken,
+      ...tokens,
     };
+  }
+
+  private async createTokenPair(
+    userId: string,
+    email: string,
+    sessionId: string,
+  ) {
+    const accessToken = await this.jwtService.signAsync({
+      sub: userId,
+      email,
+      sid: sessionId,
+      typ: 'access',
+    });
+    const refreshToken = await this.jwtService.signAsync(
+      {
+        sub: userId,
+        email,
+        sid: sessionId,
+        typ: 'refresh',
+        jti: randomUUID(),
+      },
+      {
+        secret: this.getRefreshTokenSecret(),
+        expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN') ?? '30d',
+      },
+    );
+    return {
+      tokenType: 'Bearer',
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  private hashRefreshToken(refreshToken: string) {
+    return createHash('sha256').update(refreshToken).digest('hex');
+  }
+
+  private getRefreshTokenSecret() {
+    const secret = this.configService.get<string>('JWT_REFRESH_SECRET_KEY');
+    if (!secret) {
+      throw new InternalServerErrorException(
+        'JWT_REFRESH_SECRET_KEY is not configured',
+      );
+    }
+    return secret;
   }
 
   private toUserResponse(user: UserDocument) {

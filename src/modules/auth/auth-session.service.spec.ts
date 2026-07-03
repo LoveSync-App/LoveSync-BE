@@ -94,8 +94,77 @@ describe('AuthSessionService', () => {
     });
     expect(userModel.updateOne).toHaveBeenCalledWith(
       { _id: userId, activeSessionId: 'current-session' },
-      { $unset: { activeSessionId: 1 } },
+      { $unset: { activeSessionId: 1, refreshTokenHash: 1 } },
     );
     expect(disconnect).toHaveBeenCalledWith(true);
+  });
+
+  it('stores refresh token only for the active session', async () => {
+    userModel.updateOne.mockResolvedValue({ matchedCount: 1 });
+
+    await expect(
+      service.storeRefreshToken(userId, 'current-session', 'hashed-refresh'),
+    ).resolves.toBeUndefined();
+
+    expect(userModel.updateOne).toHaveBeenCalledWith(
+      { _id: userId, activeSessionId: 'current-session' },
+      { $set: { refreshTokenHash: 'hashed-refresh' } },
+    );
+  });
+
+  it('rejects refresh token storage when the session changed', async () => {
+    userModel.updateOne.mockResolvedValue({ matchedCount: 0 });
+
+    await expect(
+      service.storeRefreshToken(userId, 'old-session', 'hashed-refresh'),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('rotates refresh token when the current token hash matches', async () => {
+    userModel.updateOne.mockResolvedValue({ modifiedCount: 1 });
+
+    await expect(
+      service.rotateRefreshToken(
+        {
+          sub: userId,
+          sid: 'current-session',
+          typ: 'refresh',
+          jti: 'refresh-id',
+        },
+        'current-refresh-hash',
+        'next-refresh-hash',
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(userModel.updateOne).toHaveBeenCalledWith(
+      {
+        _id: userId,
+        activeSessionId: 'current-session',
+        refreshTokenHash: 'current-refresh-hash',
+        status: 'ACTIVE',
+      },
+      {
+        $set: {
+          refreshTokenHash: 'next-refresh-hash',
+        },
+      },
+    );
+  });
+
+  it('rejects an already-used refresh token', async () => {
+    userModel.updateOne.mockResolvedValue({ modifiedCount: 0 });
+
+    await expect(
+      service.rotateRefreshToken(
+        {
+          sub: userId,
+          sid: 'current-session',
+          typ: 'refresh',
+          jti: 'refresh-id',
+        },
+        'old-refresh-hash',
+        'next-refresh-hash',
+      ),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 });
