@@ -19,6 +19,7 @@ import { CalendarModule } from './modules/calendar/calendar.module';
 import { E2eeModule } from './modules/e2ee/e2ee.module';
 import { MailConfigModule } from './config/mail.config';
 import { MailModule } from './modules/mail/mail.module';
+import { RedisConfigModule } from './config/redis.config';
 
 @Module({
   imports: [
@@ -39,9 +40,10 @@ import { MailModule } from './modules/mail/mail.module';
     CallModule,
     E2eeModule,
     MailConfigModule,
-    MailModule
+    MailModule,
+    RedisConfigModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule {}

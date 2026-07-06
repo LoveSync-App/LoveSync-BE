@@ -14,6 +14,8 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthSessionService } from './auth-session.service';
 import { SetPasswordDto } from './dto/set-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -48,6 +50,28 @@ export class AuthController {
   @HttpCode(200)
   async refresh(@Body() dto: RefreshTokenDto) {
     const response = await this.authService.refresh(dto);
+    return {
+      success: true,
+      statusCode: 200,
+      data: response,
+    };
+  }
+
+  @Post('password/forgot')
+  @HttpCode(200)
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    const response = await this.authService.forgotPassword(dto);
+    return {
+      success: true,
+      statusCode: 200,
+      data: response,
+    };
+  }
+
+  @Post('password/reset')
+  @HttpCode(200)
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    const response = await this.authService.resetPassword(dto);
     return {
       success: true,
       statusCode: 200,

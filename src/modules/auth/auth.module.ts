@@ -10,12 +10,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthSessionService } from './auth-session.service';
 import { FirebaseIdentityService } from './firebase-identity.service';
 import { DeviceModule } from '../device/device.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
     UserModule,
-    PassportModule, 
+    PassportModule,
     DeviceModule,
+    MailModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

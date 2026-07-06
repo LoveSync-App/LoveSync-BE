@@ -82,8 +82,8 @@
                     line-height: 1.7;
                   '
                 >
-                  {{#if name}}Chào {{name}}, {{/if}}hãy dùng mã bên dưới để hoàn
-                  tất xác thực.
+                  Chào
+                  {{name}}, hãy dùng mã bên dưới để hoàn tất xác thực.
                 </p>
               </td>
             </tr>
@@ -106,7 +106,7 @@
                     text-align: center;
                   '
                 >
-                  {{#if otp}}{{otp}}{{else}}{{code}}{{/if}}
+                  {{otp}}
                 </div>
 
                 <p
@@ -117,8 +117,8 @@
                     line-height: 1.7;
                   '
                 >
-                  Mã OTP gồm 6 số.
-                  {{#if expiresIn}}Mã sẽ hết hạn sau {{expiresIn}}.{{/if}}
+                  Mã OTP gồm 6 số. Mã sẽ hết hạn sau
+                  {{expiresIn}}.
                 </p>
               </td>
             </tr>

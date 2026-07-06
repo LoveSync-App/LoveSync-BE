@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   UnauthorizedException,
@@ -9,18 +10,22 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { compare, hash } from 'bcrypt';
-import { createHash, randomUUID } from 'crypto';
+import { createHash, randomInt, randomUUID } from 'crypto';
 import { DecodedIdToken } from 'firebase-admin/auth';
+import Redis from 'ioredis';
 import { Model } from 'mongoose';
+import { MailService } from '../mail/mail.service';
 import { UserStatus } from '../users/enum/user-role.enum';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { AuthSessionService, SessionJwtPayload } from './auth-session.service';
 import { FirebaseIdentityService } from './firebase-identity.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { LoginRequestDto } from './dto/login-request.dto';
 import { LoginRegisterDto } from './dto/login-register.dto';
-import { SetPasswordDto } from './dto/set-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { SetPasswordDto } from './dto/set-password.dto';
 import { AuthProvider } from './enum/auth-provider.enum';
 
 @Injectable()
@@ -32,6 +37,9 @@ export class AuthService {
     private readonly authSessionService: AuthSessionService,
     private readonly firebaseIdentityService: FirebaseIdentityService,
     private readonly configService: ConfigService,
+    private readonly mailService: MailService,
+    @Inject('REDIS_CONFIG')
+    private readonly redis: Redis,
   ) {}
 
   async login(dto: LoginRequestDto) {
@@ -209,6 +217,118 @@ export class AuthService {
     return tokens;
   }
 
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const email = this.normalizeEmail(dto.email);
+    const expiresInSeconds = this.getPasswordResetOtpTtlSeconds();
+    const cooldownSeconds = this.getPasswordResetCooldownSeconds();
+    const cooldownKey = this.passwordResetCooldownKey(email);
+
+    const isCoolingDown = await this.redis.get(cooldownKey);
+    if (isCoolingDown) {
+      return {
+        sent: true,
+        expiresInSeconds,
+      };
+    }
+
+    const user = await this.userModel.findOne({
+      email,
+      status: UserStatus.ACTIVE,
+    });
+    if (user) {
+      const otp = this.generateOtp();
+      await this.redis.set(
+        this.passwordResetOtpKey(email),
+        JSON.stringify({
+          hash: this.hashOtp(email, otp),
+          attempts: 0,
+        }),
+        'EX',
+        expiresInSeconds,
+      );
+      await this.redis.set(cooldownKey, '1', 'EX', cooldownSeconds);
+      await this.mailService.sendHTMLMail(
+        email,
+        'Mã OTP khôi phục mật khẩu LoveSync',
+        'otp',
+        {
+          name: user.name,
+          otp,
+          expiresIn: this.formatSecondsForEmail(expiresInSeconds),
+        },
+      );
+    }
+
+    return {
+      sent: true,
+      expiresInSeconds,
+    };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    if (dto.password !== dto.passwordConfirm) {
+      throw new BadRequestException(
+        'Password and password confirm do not match',
+      );
+    }
+
+    const email = this.normalizeEmail(dto.email);
+    const otpKey = this.passwordResetOtpKey(email);
+    const storedValue = await this.redis.get(otpKey);
+    if (!storedValue) {
+      throw new UnauthorizedException('Invalid or expired OTP');
+    }
+
+    const storedOtp = this.parseStoredPasswordResetOtp(storedValue);
+    const maxAttempts = this.getPasswordResetMaxAttempts();
+    if (storedOtp.hash !== this.hashOtp(email, dto.otp)) {
+      const nextAttempts = storedOtp.attempts + 1;
+      if (nextAttempts >= maxAttempts) {
+        await this.redis.del(otpKey);
+      } else {
+        const ttl = await this.redis.ttl(otpKey);
+        await this.redis.set(
+          otpKey,
+          JSON.stringify({
+            ...storedOtp,
+            attempts: nextAttempts,
+          }),
+          'EX',
+          Math.max(ttl, 1),
+        );
+      }
+      throw new UnauthorizedException('Invalid or expired OTP');
+    }
+
+    const user = await this.userModel
+      .findOne({
+        email,
+        status: UserStatus.ACTIVE,
+      })
+      .select('+password +activeSessionId');
+    if (!user) {
+      await this.redis.del(otpKey);
+      throw new UnauthorizedException('Invalid or expired OTP');
+    }
+
+    user.password = await hash(dto.password, 10);
+    user.authProviders ??= [];
+    if (!user.authProviders.includes(AuthProvider.PASSWORD)) {
+      user.authProviders.push(AuthProvider.PASSWORD);
+    }
+    await user.save();
+    await this.redis.del(otpKey, this.passwordResetCooldownKey(email));
+    await this.authSessionService.revokeUserSessions(
+      user._id.toString(),
+      'PASSWORD_RESET',
+      'Password was reset for this account',
+    );
+
+    return {
+      passwordReset: true,
+    };
+  }
+
   private async issueLoginResponse(
     user: UserDocument,
     loginProvider: AuthProvider,
@@ -276,6 +396,85 @@ export class AuthService {
       );
     }
     return secret;
+  }
+
+  private normalizeEmail(email: string) {
+    return email.trim().toLowerCase();
+  }
+
+  private generateOtp() {
+    return randomInt(0, 1_000_000).toString().padStart(6, '0');
+  }
+
+  private hashOtp(email: string, otp: string) {
+    const pepper = this.configService.get<string>('PASSWORD_RESET_OTP_SECRET');
+    if (!pepper) {
+      throw new InternalServerErrorException(
+        'PASSWORD_RESET_OTP_SECRET is not configured',
+      );
+    }
+    return createHash('sha256')
+      .update(`${email}:${otp}:${pepper}`)
+      .digest('hex');
+  }
+
+  private passwordResetOtpKey(email: string) {
+    return `auth:password-reset:otp:${email}`;
+  }
+
+  private passwordResetCooldownKey(email: string) {
+    return `auth:password-reset:cooldown:${email}`;
+  }
+
+  private parseStoredPasswordResetOtp(value: string): {
+    hash: string;
+    attempts: number;
+  } {
+    try {
+      const parsed = JSON.parse(value) as {
+        hash?: unknown;
+        attempts?: unknown;
+      };
+      if (typeof parsed.hash !== 'string') {
+        throw new Error('Invalid OTP hash');
+      }
+      return {
+        hash: parsed.hash,
+        attempts:
+          typeof parsed.attempts === 'number' && parsed.attempts >= 0
+            ? parsed.attempts
+            : 0,
+      };
+    } catch {
+      throw new UnauthorizedException('Invalid or expired OTP');
+    }
+  }
+
+  private getPasswordResetOtpTtlSeconds() {
+    return this.getPositiveNumberConfig('PASSWORD_RESET_OTP_TTL_SECONDS', 300);
+  }
+
+  private getPasswordResetCooldownSeconds() {
+    return this.getPositiveNumberConfig(
+      'PASSWORD_RESET_OTP_COOLDOWN_SECONDS',
+      60,
+    );
+  }
+
+  private getPasswordResetMaxAttempts() {
+    return this.getPositiveNumberConfig('PASSWORD_RESET_OTP_MAX_ATTEMPTS', 5);
+  }
+
+  private getPositiveNumberConfig(key: string, fallback: number) {
+    const value = Number(this.configService.get<string | number>(key));
+    return Number.isFinite(value) && value > 0 ? value : fallback;
+  }
+
+  private formatSecondsForEmail(seconds: number) {
+    if (seconds % 60 === 0) {
+      return `${seconds / 60} phút`;
+    }
+    return `${seconds} giây`;
   }
 
   private toUserResponse(user: UserDocument) {

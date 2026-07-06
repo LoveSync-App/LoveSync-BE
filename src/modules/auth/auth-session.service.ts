@@ -20,6 +20,16 @@ type RegisteredSocket = {
   socket: Socket;
 };
 
+type SessionRevokedPayload = {
+  code: string;
+  message: string;
+};
+
+const DEFAULT_SESSION_REVOKED_PAYLOAD: SessionRevokedPayload = {
+  code: 'SIGNED_IN_ON_ANOTHER_DEVICE',
+  message: 'This account was signed in on another device',
+};
+
 @Injectable()
 export class AuthSessionService {
   private readonly socketsByUser = new Map<
@@ -32,7 +42,7 @@ export class AuthSessionService {
     private readonly userModel: Model<User>,
     @InjectModel(Device.name)
     private readonly deviceModel: Model<DeviceDocument>,
-  ) { }
+  ) {}
 
   async startSession(userId: string) {
     const sessionId = randomUUID();
@@ -183,7 +193,34 @@ export class AuthSessionService {
     return { loggedOut: true };
   }
 
-  private disconnectSessionSockets(userId: string, sessionId: string) {
+  async revokeUserSessions(
+    userId: string,
+    code = DEFAULT_SESSION_REVOKED_PAYLOAD.code,
+    message = DEFAULT_SESSION_REVOKED_PAYLOAD.message,
+  ) {
+    const user = await this.userModel
+      .findByIdAndUpdate(
+        userId,
+        { $unset: { activeSessionId: 1, refreshTokenHash: 1 } },
+        { new: false },
+      )
+      .select('+activeSessionId');
+
+    if (user?.activeSessionId) {
+      this.disconnectSessionSockets(userId, user.activeSessionId, {
+        code,
+        message,
+      });
+    }
+
+    return { revoked: true };
+  }
+
+  private disconnectSessionSockets(
+    userId: string,
+    sessionId: string,
+    payload: SessionRevokedPayload = DEFAULT_SESSION_REVOKED_PAYLOAD,
+  ) {
     const sockets = this.socketsByUser.get(userId);
     if (!sockets) {
       return;
@@ -192,10 +229,7 @@ export class AuthSessionService {
       if (registration.sessionId !== sessionId) {
         continue;
       }
-      registration.socket.emit('auth:session-revoked', {
-        code: 'SIGNED_IN_ON_ANOTHER_DEVICE',
-        message: 'This account was signed in on another device',
-      });
+      registration.socket.emit('auth:session-revoked', payload);
       registration.socket.disconnect(true);
       sockets.delete(key);
     }

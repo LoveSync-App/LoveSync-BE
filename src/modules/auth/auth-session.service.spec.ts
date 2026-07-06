@@ -1,6 +1,7 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { Model, Types } from 'mongoose';
 import { Socket } from 'socket.io';
+import { DeviceDocument } from '../device/schema/device.schema';
 import { User } from '../users/schemas/user.schema';
 import { AuthSessionService } from './auth-session.service';
 
@@ -13,6 +14,10 @@ describe('AuthSessionService', () => {
     findOne: jest.Mock;
     updateOne: jest.Mock;
   };
+  let deviceModel: {
+    findOneAndDelete: jest.Mock;
+    deleteOne: jest.Mock;
+  };
   let service: AuthSessionService;
 
   beforeEach(() => {
@@ -23,7 +28,14 @@ describe('AuthSessionService', () => {
       findOne: jest.fn(() => ({ select: selectActiveUser })),
       updateOne: jest.fn(),
     };
-    service = new AuthSessionService(userModel as unknown as Model<User>);
+    deviceModel = {
+      findOneAndDelete: jest.fn(),
+      deleteOne: jest.fn(),
+    };
+    service = new AuthSessionService(
+      userModel as unknown as Model<User>,
+      deviceModel as unknown as Model<DeviceDocument>,
+    );
   });
 
   it('disconnects sockets belonging to the previous session', async () => {
@@ -80,6 +92,7 @@ describe('AuthSessionService', () => {
 
   it('clears and disconnects the current session on logout', async () => {
     userModel.updateOne.mockResolvedValue({ modifiedCount: 1 });
+    deviceModel.findOneAndDelete.mockResolvedValue({});
     const disconnect = jest.fn();
     const socket = {
       id: 'socket-2',
@@ -166,5 +179,40 @@ describe('AuthSessionService', () => {
         'next-refresh-hash',
       ),
     ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('revokes all active session tokens and sockets', async () => {
+    selectPreviousUser.mockResolvedValue({
+      _id: new Types.ObjectId(userId),
+      activeSessionId: 'current-session',
+    });
+    const emit = jest.fn();
+    const disconnect = jest.fn();
+    const socket = {
+      id: 'socket-3',
+      nsp: { name: '/chat' },
+      emit,
+      disconnect,
+    } as unknown as Socket;
+    service.registerSocket(userId, 'current-session', socket);
+
+    await expect(
+      service.revokeUserSessions(
+        userId,
+        'PASSWORD_RESET',
+        'Password was reset for this account',
+      ),
+    ).resolves.toEqual({ revoked: true });
+
+    expect(userModel.findByIdAndUpdate).toHaveBeenCalledWith(
+      userId,
+      { $unset: { activeSessionId: 1, refreshTokenHash: 1 } },
+      { new: false },
+    );
+    expect(emit).toHaveBeenCalledWith('auth:session-revoked', {
+      code: 'PASSWORD_RESET',
+      message: 'Password was reset for this account',
+    });
+    expect(disconnect).toHaveBeenCalledWith(true);
   });
 });

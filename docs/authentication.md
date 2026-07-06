@@ -191,6 +191,90 @@ out, or belongs to a session replaced by another device, the endpoint returns
 Socket.IO connections cannot use a refresh token. Reconnect sockets with the new
 `accessToken` after refresh.
 
+## Forgot password with email OTP
+
+This flow is public and does not require `Authorization`.
+
+### Request password reset OTP
+
+```http
+POST /auth/password/forgot
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "sent": true,
+    "expiresInSeconds": 300
+  }
+}
+```
+
+For privacy, the API returns the same successful response even when the email is
+not registered. If the account exists and is active, the server sends a 6-digit
+OTP using the `otp.hbs` email template.
+
+The server stores only a hashed OTP in Redis. The OTP expires after
+`PASSWORD_RESET_OTP_TTL_SECONDS`, and resend requests are throttled by
+`PASSWORD_RESET_OTP_COOLDOWN_SECONDS`.
+
+### Reset password with OTP
+
+```http
+POST /auth/password/reset
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "otp": "123456",
+  "password": "newSecret123",
+  "passwordConfirm": "newSecret123"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "passwordReset": true
+  }
+}
+```
+
+On success, the OTP is deleted, password login is enabled for the account, and
+the current active session is revoked. Existing REST access/refresh tokens then
+return `401 Unauthorized`, and connected sockets receive:
+
+```text
+auth:session-revoked
+```
+
+```json
+{
+  "code": "PASSWORD_RESET",
+  "message": "Password was reset for this account"
+}
+```
+
+Invalid, expired, or over-attempted OTPs return `401 Unauthorized`. Password and
+password confirmation mismatch returns `400 Bad Request`.
+
 ## One active session
 
 Every successful login creates a new session ID and embeds it in the application
@@ -256,10 +340,17 @@ JWT_SECRET_KEY=...
 JWT_EXPIRES_IN=15m
 JWT_REFRESH_SECRET_KEY=...
 JWT_REFRESH_EXPIRES_IN=30d
+PASSWORD_RESET_OTP_SECRET=...
+PASSWORD_RESET_OTP_TTL_SECONDS=300
+PASSWORD_RESET_OTP_COOLDOWN_SECONDS=60
+PASSWORD_RESET_OTP_MAX_ATTEMPTS=5
+REDIS_HOST=...
+REDIS_PORT=6379
+REDIS_PASSWORD=...
 ```
 
 Use a different strong secret for `JWT_REFRESH_SECRET_KEY`; do not reuse
-`JWT_SECRET_KEY`.
+`JWT_SECRET_KEY`. Use another strong secret for `PASSWORD_RESET_OTP_SECRET`.
 
 ## Firebase server configuration
 
