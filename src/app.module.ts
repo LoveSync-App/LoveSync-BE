@@ -17,6 +17,8 @@ import { CallModule } from './modules/calls/call.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CalendarModule } from './modules/calendar/calendar.module';
 import { E2eeModule } from './modules/e2ee/e2ee.module';
+import { MailConfigModule } from './config/mail.config';
+import { MailModule } from './modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -36,8 +38,10 @@ import { E2eeModule } from './modules/e2ee/e2ee.module';
     UploadModule,
     CallModule,
     E2eeModule,
+    MailConfigModule,
+    MailModule
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

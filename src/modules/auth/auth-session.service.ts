@@ -5,6 +5,7 @@ import { Model, Types } from 'mongoose';
 import { Socket } from 'socket.io';
 import { UserStatus } from '../users/enum/user-role.enum';
 import { User } from '../users/schemas/user.schema';
+import { Device, DeviceDocument } from '../device/schema/device.schema';
 
 export type SessionJwtPayload = {
   sub?: string;
@@ -29,7 +30,9 @@ export class AuthSessionService {
   public constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<User>,
-  ) {}
+    @InjectModel(Device.name)
+    private readonly deviceModel: Model<DeviceDocument>,
+  ) { }
 
   async startSession(userId: string) {
     const sessionId = randomUUID();
@@ -166,6 +169,16 @@ export class AuthSessionService {
     );
     if (result.modifiedCount > 0) {
       this.disconnectSessionSockets(userId, sessionId);
+    }
+    // Xóa fcm token của user trong session này
+    const device = await this.deviceModel.findOneAndDelete({
+      user: userId,
+    });
+
+    if (!device) {
+      await this.deviceModel.deleteOne({
+        user: userId,
+      });
     }
     return { loggedOut: true };
   }

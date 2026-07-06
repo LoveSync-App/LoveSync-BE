@@ -9,11 +9,13 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthSessionService } from './auth-session.service';
 import { FirebaseIdentityService } from './firebase-identity.service';
+import { DeviceModule } from '../device/device.module';
 
 @Module({
   imports: [
     UserModule,
-    PassportModule,
+    PassportModule, 
+    DeviceModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
