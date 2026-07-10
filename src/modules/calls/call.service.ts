@@ -61,7 +61,7 @@ export class CallService {
     private readonly notificationService: NotificationService,
     private readonly callGateway: CallGateway,
     private readonly chatService: ChatService,
-  ) {}
+  ) { }
 
   async create(userId: string, dto: CreateCallDto) {
     const callerId = this.toObjectId(userId);
@@ -169,7 +169,7 @@ export class CallService {
           answeredAt: new Date(),
         },
       },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!call) {
       await this.throwCallTransitionError(calleeId, callId, 'accept');
@@ -233,7 +233,7 @@ export class CallService {
           ),
         },
       },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!call) {
       throw new ConflictException('Call has already ended');
@@ -465,7 +465,7 @@ export class CallService {
           endedBy: participantId,
         },
       },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!call) {
       await this.throwCallTransitionError(participantId, callId, role);

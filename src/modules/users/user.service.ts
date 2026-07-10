@@ -10,7 +10,7 @@ export class UserService {
   constructor(
     @InjectModel(User.name)
     private userModel: Model<UserDocument>,
-  ) {}
+  ) { }
 
   async getById(id: string): Promise<Object> {
     const user = await this.userModel.findById(id);
@@ -40,7 +40,7 @@ export class UserService {
     const user = await this.userModel.findByIdAndUpdate(
       id,
       { $set: updateData },
-      { new: true, runValidators: true },
+      { returnDocument: 'after', runValidators: true },
     );
 
     if (!user) {
@@ -54,7 +54,7 @@ export class UserService {
     const user = await this.userModel.findByIdAndUpdate(
       id,
       { $set: { status: UserStatus.INACTIVE } },
-      { new: true },
+      { returnDocument: 'after' },
     );
 
     if (!user) {

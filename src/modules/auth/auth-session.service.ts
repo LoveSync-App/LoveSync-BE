@@ -42,7 +42,7 @@ export class AuthSessionService {
     private readonly userModel: Model<User>,
     @InjectModel(Device.name)
     private readonly deviceModel: Model<DeviceDocument>,
-  ) {}
+  ) { }
 
   async startSession(userId: string) {
     const sessionId = randomUUID();
@@ -58,7 +58,7 @@ export class AuthSessionService {
             refreshTokenHash: 1,
           },
         },
-        { new: false },
+        { returnDocument: 'before' },
       )
       .select('+activeSessionId');
     if (!previousUser) {
@@ -174,7 +174,7 @@ export class AuthSessionService {
 
   async logout(userId: string, sessionId: string) {
     const result = await this.userModel.updateOne(
-      { _id: userId, activeSessionId: sessionId },
+      { _id: new Types.ObjectId(userId), activeSessionId: sessionId },
       { $unset: { activeSessionId: 1, refreshTokenHash: 1 } },
     );
     if (result.modifiedCount > 0) {
@@ -182,12 +182,12 @@ export class AuthSessionService {
     }
     // Xóa fcm token của user trong session này
     const device = await this.deviceModel.findOneAndDelete({
-      user: userId,
+      user: new Types.ObjectId(userId),
     });
 
     if (!device) {
       await this.deviceModel.deleteOne({
-        user: userId,
+        user: new Types.ObjectId(userId),
       });
     }
     return { loggedOut: true };
@@ -202,7 +202,7 @@ export class AuthSessionService {
       .findByIdAndUpdate(
         userId,
         { $unset: { activeSessionId: 1, refreshTokenHash: 1 } },
-        { new: false },
+        { returnDocument: 'before' },
       )
       .select('+activeSessionId');
 

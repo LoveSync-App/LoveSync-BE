@@ -25,7 +25,7 @@ export class CalendarReminderService {
     @InjectModel(Device.name)
     private readonly deviceModel: Model<DeviceDocument>,
     private readonly notificationService: NotificationService,
-  ) {}
+  ) { }
 
   @Cron('0 * * * * *', {
     name: 'calendar-reminders',
@@ -73,7 +73,7 @@ export class CalendarReminderService {
         ],
       },
       { $set: { reminderClaimedAt: claimedAt } },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!event) {
       return;

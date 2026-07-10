@@ -50,7 +50,7 @@ export class ChatService {
     private readonly notificationService: NotificationService,
     private readonly chatGateway: ChatGateway,
     private readonly e2eeService: E2eeService,
-  ) {}
+  ) { }
 
   public async sendMessage(senderId: string, sendMessageDto: SendMessageDto) {
     const senderObjectId = new Types.ObjectId(senderId);
@@ -129,11 +129,11 @@ export class ChatService {
     const attachments =
       attachmentUrls.length > 0
         ? await this.messageAttachmentModel.insertMany(
-            attachmentUrls.map((fileUrl) => ({
-              message: message._id,
-              file_url: fileUrl,
-            })),
-          )
+          attachmentUrls.map((fileUrl) => ({
+            message: message._id,
+            file_url: fileUrl,
+          })),
+        )
         : [];
 
     const response = {
@@ -378,7 +378,7 @@ export class ChatService {
         },
       },
       {
-        new: true,
+        returnDocument: 'after',
         upsert: true,
         setDefaultsOnInsert: true,
       },

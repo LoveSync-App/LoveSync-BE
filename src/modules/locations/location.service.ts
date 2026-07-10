@@ -22,7 +22,7 @@ export class LocationService {
     @InjectModel(Couple.name)
     private readonly coupleModel: Model<CoupleDocument>,
     private readonly locationRealtime: LocationRealtimeService,
-  ) {}
+  ) { }
 
   async startSharing(userId: string, dto: StartLiveLocationDto) {
     const userObjectId = this.toObjectId(userId);
@@ -50,7 +50,7 @@ export class LocationService {
         },
         $unset: unsetFields,
       },
-      { new: true, upsert: true, setDefaultsOnInsert: true },
+      { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true },
     );
 
     const payload = this.serializeLocation(location);
@@ -84,7 +84,7 @@ export class LocationService {
       {
         $set: coordinateUpdate,
       },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!location) {
       const activeSession = await this.locationModel.exists({
@@ -130,7 +130,7 @@ export class LocationService {
           sharingExpiresAt: 1,
         },
       },
-      { new: true },
+      { returnDocument: 'after' },
     );
 
     const payload = {
@@ -202,7 +202,7 @@ export class LocationService {
           sharingExpiresAt: 1,
         },
       },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (expired) {
       this.emitToCouple(couple, 'location:sharing-expired', {

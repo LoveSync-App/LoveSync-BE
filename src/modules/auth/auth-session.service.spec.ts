@@ -207,7 +207,7 @@ describe('AuthSessionService', () => {
     expect(userModel.findByIdAndUpdate).toHaveBeenCalledWith(
       userId,
       { $unset: { activeSessionId: 1, refreshTokenHash: 1 } },
-      { new: false },
+      { returnDocument: 'before' },
     );
     expect(emit).toHaveBeenCalledWith('auth:session-revoked', {
       code: 'PASSWORD_RESET',
