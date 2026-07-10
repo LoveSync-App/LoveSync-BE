@@ -30,4 +30,27 @@ export class UploadController {
             }
         };
     }
+
+    @Post('file')
+    @UseInterceptors(
+        FileInterceptor('file', {
+            limits: { fileSize: 3 * 1024 * 1024 },
+        }),
+    )
+    async uploadFile(@UploadedFile() file: any) {
+        if (!file) {
+            throw new BadRequestException('File is required and must not exceed 3 MB');
+        }
+
+        const result = await this.uploadService.uploadFile(file);
+
+        return {
+            success: true,
+            statusCode: 201,
+            data: {
+                url: result.secure_url,
+                publicId: result.public_id,
+            }
+        };
+    }
 }

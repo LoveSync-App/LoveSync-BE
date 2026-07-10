@@ -23,4 +23,25 @@ export class UploadService {
             Readable.from(file.buffer).pipe(uploadStream);
         });
     }
+
+    async uploadFile(file: any): Promise<UploadApiResponse> {
+        return new Promise((resolve, reject) => {
+            const uploadStream = cloudinary.uploader.upload_stream(
+                {
+                    folder: 'lovesync/attachments',
+                    resource_type: 'auto',
+                    use_filename: true,
+                    unique_filename: true,
+                },
+                (error, result) => {
+                    if (error) return reject(error);
+                    if (!result) return reject(new Error('Upload failed'));
+
+                    resolve(result);
+                },
+            );
+
+            Readable.from(file.buffer).pipe(uploadStream);
+        });
+    }
 }
