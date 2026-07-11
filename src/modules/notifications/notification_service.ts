@@ -21,6 +21,16 @@ export class NotificationService {
       android: {
         priority: 'high',
       },
+      apns: {
+        headers: {
+          'apns-priority': '10',
+        },
+        payload: {
+          aps: {
+            sound: 'default',
+          },
+        },
+      },
     });
     return response;
   }
