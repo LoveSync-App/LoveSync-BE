@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-wrapper-object-types */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
   BadRequestException,
   ConflictException,
@@ -5,7 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, Model, Types } from 'mongoose';
+import { ClientSession, Connection, Model, Types } from 'mongoose';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { Couple, CoupleDocument } from './schemas/couple.schema';
 import { CoupleStatus } from './enum/couple-status.enum';
@@ -17,6 +20,13 @@ import { Invitation, InvitationDocument } from './schemas/invitation.schema';
 import { NotificationService } from '../notifications/notification_service';
 import { Device, DeviceDocument } from '../device/schema/device.schema';
 import { InvitationStatus } from './enum/invitation-status.enum';
+import {
+  CalendarEvent,
+  CalendarEventDocument,
+} from '../calendar/schemas/calendar-event.schema';
+import { CalendarEventType } from '../calendar/enum/calendar-event-type.enum';
+import { CalendarRecurrence } from '../calendar/enum/calendar-recurrence.enum';
+import { getNextReminderSchedule } from '../calendar/calendar-date.util';
 
 @Injectable()
 export class CoupleService {
@@ -31,6 +41,8 @@ export class CoupleService {
     private readonly invitationModel: Model<InvitationDocument>,
     @InjectModel(Device.name)
     private readonly deviceModel: Model<DeviceDocument>,
+    @InjectModel(CalendarEvent.name)
+    private readonly calendarEventModel: Model<CalendarEventDocument>,
     @InjectConnection()
     private readonly connection: Connection,
     private readonly notificationService: NotificationService,
@@ -233,6 +245,13 @@ export class CoupleService {
       });
       await period.save({ session });
 
+      await this.syncAnniversaryEvent(
+        couple._id,
+        receiverId,
+        period.start_date,
+        session,
+      );
+
       await this.invitationModel
         .updateMany(
           {
@@ -359,11 +378,60 @@ export class CoupleService {
     period.end_date = new Date();
     await period.save();
 
+    await this.syncAnniversaryEvent(
+      couple._id,
+      userObjectId,
+      period.start_date,
+    );
+
     const result = await this.getLoveDays(userId);
     if (!result) {
       throw new NotFoundException('Couple period not found');
     }
     return result;
+  }
+
+  private async syncAnniversaryEvent(
+    coupleId: Types.ObjectId,
+    createdBy: Types.ObjectId,
+    startDate: Date,
+    session?: ClientSession,
+  ): Promise<void> {
+    const recurrence = CalendarRecurrence.YEARLY;
+    const reminderMinutesBefore = 1440;
+    const schedule = getNextReminderSchedule(
+      startDate,
+      recurrence,
+      reminderMinutesBefore,
+    );
+
+    await this.calendarEventModel.findOneAndUpdate(
+      { couple: coupleId, systemKey: 'COUPLE_ANNIVERSARY' },
+      {
+        $set: {
+          type: CalendarEventType.IMPORTANT_DATE,
+          title: 'Kỷ niệm ngày yêu nhau',
+          description: 'Ngày kỷ niệm được đồng bộ từ ngày bắt đầu yêu nhau.',
+          startsAt: startDate,
+          recurrence,
+          reminderEnabled: true,
+          reminderMinutesBefore,
+          nextReminderAt: schedule?.reminderAt,
+          nextOccurrenceAt: schedule?.occurrenceAt,
+        },
+        $unset: {
+          lastReminderOccurrenceAt: 1,
+          reminderClaimedAt: 1,
+          lastReminderSentAt: 1,
+        },
+        $setOnInsert: {
+          couple: coupleId,
+          createdBy,
+          systemKey: 'COUPLE_ANNIVERSARY',
+        },
+      },
+      { upsert: true, new: true, session },
+    );
   }
 
   public async unlinkCouple(userId: string): Promise<Couple | null> {

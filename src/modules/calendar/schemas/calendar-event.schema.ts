@@ -13,6 +13,9 @@ export type CalendarEventDocument = HydratedDocument<CalendarEvent>;
   versionKey: false,
 })
 export class CalendarEvent {
+  @Prop({ type: String, trim: true })
+  systemKey?: string;
+
   @Prop({
     required: true,
     type: Types.ObjectId,
@@ -84,6 +87,13 @@ export class CalendarEvent {
 export const CalendarEventSchema = SchemaFactory.createForClass(CalendarEvent);
 
 CalendarEventSchema.index({ couple: 1, startsAt: 1 });
+CalendarEventSchema.index(
+  { couple: 1, systemKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { systemKey: { $type: 'string' } },
+  },
+);
 CalendarEventSchema.index({
   reminderEnabled: 1,
   nextReminderAt: 1,

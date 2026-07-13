@@ -78,6 +78,9 @@ export class Message {
   @Prop({ default: false })
   isRead: boolean;
 
+  @Prop({ type: Date })
+  readAt?: Date;
+
   createdAt: Date;
   updatedAt: Date;
 }

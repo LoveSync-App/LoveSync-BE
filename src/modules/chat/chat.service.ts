@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import {
   BadRequestException,
   ConflictException,
@@ -50,7 +51,7 @@ export class ChatService {
     private readonly notificationService: NotificationService,
     private readonly chatGateway: ChatGateway,
     private readonly e2eeService: E2eeService,
-  ) { }
+  ) {}
 
   public async sendMessage(senderId: string, sendMessageDto: SendMessageDto) {
     const senderObjectId = new Types.ObjectId(senderId);
