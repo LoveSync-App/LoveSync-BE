@@ -42,6 +42,22 @@ export class MemoryService {
     return memories;
   }
 
+  // Xóa kỷ niệm theo id cho couple hiện tại
+  public async deleteMemoryById(userId: string, memoryId: string) {
+    const couple = await this.getCoupleInfoByUserId(userId);
+    const objectMemoryId = new Types.ObjectId(memoryId);
+    const deletedMemory = await this.memoryModel.findOneAndDelete({
+      _id: objectMemoryId,
+      couple: couple._id,
+    });
+
+    if (!deletedMemory) {
+      throw new NotFoundException('Memory not found');
+    }
+
+    return deletedMemory;
+  }
+
   // Private: lấy thông tin user
   private async getUserInfo(userId: string): Promise<UserDocument> {
     const objectUserId = new Types.ObjectId(userId);

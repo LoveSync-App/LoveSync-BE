@@ -237,20 +237,60 @@ export class CoupleService {
         await couple.save({ session });
       }
 
-      const period = new this.couplePeriodModel({
-        start_date: new Date(),
-        end_date: new Date(),
-        couple: couple._id,
-        status: CoupleStatus.ACTIVE,
-      });
-      await period.save({ session });
+      // Check if there's a broken period from today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
 
-      await this.syncAnniversaryEvent(
-        couple._id,
-        receiverId,
-        period.start_date,
-        session,
-      );
+      const brokenPeriodToday = await this.couplePeriodModel
+        .findOne({
+          couple: couple._id,
+          status: CoupleStatus.BROKEN_UP,
+          end_date: { $gte: today, $lt: tomorrow },
+        })
+        .session(session);
+
+      if (brokenPeriodToday) {
+        // If unlinked and relinked on same day, reactivate by changing status and deleting the broken one
+        // Simply delete the broken period and reactivate the relationship with same start date
+        await this.couplePeriodModel.deleteOne(
+          { _id: brokenPeriodToday._id },
+          { session }
+        );
+
+        // Create new period with original start_date
+        const period = new this.couplePeriodModel({
+          start_date: brokenPeriodToday.start_date,
+          end_date: new Date(),
+          couple: couple._id,
+          status: CoupleStatus.ACTIVE,
+        });
+        await period.save({ session });
+
+        await this.syncAnniversaryEvent(
+          couple._id,
+          receiverId,
+          brokenPeriodToday.start_date,
+          session,
+        );
+      } else {
+        // Create new period for new relationship
+        const period = new this.couplePeriodModel({
+          start_date: new Date(),
+          end_date: new Date(),
+          couple: couple._id,
+          status: CoupleStatus.ACTIVE,
+        });
+        await period.save({ session });
+
+        await this.syncAnniversaryEvent(
+          couple._id,
+          receiverId,
+          period.start_date,
+          session,
+        );
+      }
 
       await this.invitationModel
         .updateMany(
@@ -314,10 +354,23 @@ export class CoupleService {
 
     for (const period of periods) {
       const startDate = new Date(period.start_date);
-      const endDate =
+      const endDate = new Date(
         period.status === CoupleStatus.BROKEN_UP
-          ? new Date(period.end_date)
-          : today;
+          ? period.end_date
+          : today,
+      );
+
+      // Skip BROKEN_UP periods that were broken on the same day they started
+      if (period.status === CoupleStatus.BROKEN_UP) {
+        const startDateOnly = new Date(startDate);
+        const endDateOnly = new Date(endDate);
+        startDateOnly.setHours(0, 0, 0, 0);
+        endDateOnly.setHours(0, 0, 0, 0);
+        if (startDateOnly.getTime() === endDateOnly.getTime()) {
+          continue;
+        }
+      }
+
       const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       loveDays += diffDays;

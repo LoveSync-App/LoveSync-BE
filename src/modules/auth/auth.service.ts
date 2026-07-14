@@ -26,6 +26,7 @@ import { LoginRegisterDto } from './dto/login-register.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { AuthProvider } from './enum/auth-provider.enum';
 
 @Injectable()
@@ -178,6 +179,32 @@ export class AuthService {
     if (!user.authProviders.includes(AuthProvider.PASSWORD)) {
       user.authProviders.push(AuthProvider.PASSWORD);
     }
+    await user.save();
+    return this.toUserResponse(user);
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    if (dto.newPassword !== dto.newPasswordConfirm) {
+      throw new BadRequestException(
+        'New password and confirmation do not match',
+      );
+    }
+
+    const user = await this.userModel.findById(userId).select('+password');
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      throw new UnauthorizedException('User account is inactive');
+    }
+    if (!user.password) {
+      throw new BadRequestException('Password login is not enabled for this account');
+    }
+
+    // Verify current password
+    const isPasswordValid = await compare(dto.currentPassword, user.password);
+    if (!isPasswordValid) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    user.password = await hash(dto.newPassword, 10);
     await user.save();
     return this.toUserResponse(user);
   }

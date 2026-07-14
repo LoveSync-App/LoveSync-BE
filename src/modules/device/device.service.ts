@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable prettier/prettier */
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Device } from "./schema/device.schema";
-import { Mode } from "fs";
 import { Model, Types } from "mongoose";
 import { User } from "../users/schemas/user.schema";
 

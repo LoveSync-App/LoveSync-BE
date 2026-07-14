@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable prettier/prettier */
 import { Body, Controller, Post, Req, UseGuards } from "@nestjs/common";
 import { DeviceService } from "./device.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";

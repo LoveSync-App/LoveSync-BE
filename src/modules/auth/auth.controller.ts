@@ -13,6 +13,7 @@ import { GoogleLoginDto } from './dto/google-login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthSessionService } from './auth-session.service';
 import { SetPasswordDto } from './dto/set-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -98,6 +99,21 @@ export class AuthController {
     @Body() dto: SetPasswordDto,
   ) {
     const response = await this.authService.setPassword(req.user.id, dto);
+    return {
+      success: true,
+      statusCode: 200,
+      data: response,
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('password/change')
+  @HttpCode(200)
+  async changePassword(
+    @Request() req: { user: { id: string } },
+    @Body() dto: ChangePasswordDto,
+  ) {
+    const response = await this.authService.changePassword(req.user.id, dto);
     return {
       success: true,
       statusCode: 200,

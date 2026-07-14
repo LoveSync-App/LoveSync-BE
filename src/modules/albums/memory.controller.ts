@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+/* eslint-disable prettier/prettier */
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { MemoryService } from './memory.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateMemoryDto } from './dto/create-memory.dto';
@@ -35,6 +36,19 @@ export class MemoryController {
       success: true,
       statusCode: 200,
       data: response,
+    };
+  }
+
+  // Xóa kỷ niệm theo id cho couple hiện tại
+  @Delete(':id')
+  @HttpCode(200)
+  public async deleteMemory(@Req() req: { user: { id: string } }, @Param('id') memoryId: string) {
+    const userId = req.user.id;
+    await this.memoryService.deleteMemoryById(userId, memoryId);
+    return {
+      success: true,
+      statusCode: 200,
+      message: 'Memory deleted successfully',
     };
   }
 }
