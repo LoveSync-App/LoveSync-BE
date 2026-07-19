@@ -2,6 +2,9 @@
   "name": "lovesync_be",
   "version": "0.0.1",
   "description": "",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "author": "",
   "private": true,
   "license": "UNLICENSED",
