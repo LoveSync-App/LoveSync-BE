@@ -16,5 +16,4 @@ export class AppointmentReminder {
     @Prop()
     reminderTime: Date; 
 }
-
 export const AppointmentReminderSchema = SchemaFactory.createForClass(AppointmentReminder);

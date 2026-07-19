@@ -22,12 +22,6 @@ export class Couple {
     })
     user_2: Types.ObjectId;
 
-    // @Prop({
-    //     required: true,
-    //     type: Date,
-    // })
-    // start_date: Date;
-
     @Prop({
         required: true,
         type: String,
@@ -35,9 +29,6 @@ export class Couple {
         default: CoupleStatus.ACTIVE,
     })
     status: CoupleStatus;
-
-    // createdAt: Date;
-    // updatedAt: Date;
 }
 
 export const CoupleSchema = SchemaFactory.createForClass(Couple);

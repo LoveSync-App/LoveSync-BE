@@ -25,6 +25,16 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## Feature documentation
+
+- [LiveKit calling APIs](docs/livekit-calls.md)
+- [Memory sharing API](docs/memories.md)
+- [Chat timeline and pagination](docs/chat-timeline.md)
+- [Location sharing API](docs/location-sharing.md)
+- [Calendar events API](docs/calendar-events.md)
+- [Authentication and single-session API](docs/authentication.md)
+- [End-to-end encrypted messaging API](docs/e2ee-messaging.md)
+
 ## Project setup
 
 ```bash

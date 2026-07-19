@@ -18,4 +18,5 @@ export class MessageAttachment {
     file_url: string;
 }
 
-export const MessageAttachmentSchema = SchemaFactory.createForClass(MessageAttachment);
+export const MessageAttachmentSchema =
+  SchemaFactory.createForClass(MessageAttachment);

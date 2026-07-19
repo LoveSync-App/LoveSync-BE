@@ -6,21 +6,21 @@ import { MongooseModule } from "@nestjs/mongoose";
 
 @Module(
     {
-        imports:[
+        imports: [
             MongooseModule.forRootAsync(
                 {
                     imports: [ConfigModule],
-                    inject:[ConfigService],
-                    useFactory: (configService : ConfigService) => (
+                    inject: [ConfigService],
+                    useFactory: (configService: ConfigService) => (
                         {
                             uri: configService.get<string>('MONGO_URI'),
                             retryAttempts: 5,
                             retryDelay: 3000
-                        } 
+                        }
                     )
                 }
             )
         ]
     }
 )
-export class MongoConfigModule{}
+export class MongoConfigModule { }

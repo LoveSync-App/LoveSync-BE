@@ -1,0 +1,164 @@
+<html lang='vi'>
+  <head>
+    <meta charset='UTF-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>Mã xác thực OTP</title>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background: #fff5f8;
+      color: #4a3f46;
+      font-family:
+        Arial,
+        'Helvetica Neue',
+        Helvetica,
+        sans-serif;
+    "
+  >
+    <table
+      role='presentation'
+      width='100%'
+      cellspacing='0'
+      cellpadding='0'
+      style='background: #fff5f8; padding: 32px 16px'
+    >
+      <tr>
+        <td align='center'>
+          <table
+            role='presentation'
+            width='100%'
+            cellspacing='0'
+            cellpadding='0'
+            style='
+              max-width: 520px;
+              overflow: hidden;
+              border-radius: 28px;
+              background: #ffffff;
+              box-shadow: 0 18px 48px rgba(214, 112, 146, 0.18);
+            '
+          >
+            <tr>
+              <td
+                style='
+                  padding: 34px 28px 22px;
+                  background: linear-gradient(135deg, #ffe1eb 0%, #fff7fa 100%);
+                  text-align: center;
+                '
+              >
+                <div
+                  style='
+                    display: inline-block;
+                    padding: 10px 14px;
+                    border-radius: 999px;
+                    background: rgba(255, 255, 255, 0.72);
+                    color: #d65f8d;
+                    font-size: 13px;
+                    font-weight: 700;
+                    letter-spacing: 0.4px;
+                  '
+                >
+                  LoveSync
+                </div>
+
+                <h1
+                  style='
+                    margin: 22px 0 8px;
+                    color: #ad3f70;
+                    font-size: 26px;
+                    line-height: 1.25;
+                    font-weight: 800;
+                  '
+                >
+                  Mã xác thực của bạn
+                </h1>
+
+                <p
+                  style='
+                    margin: 0;
+                    color: #7c6874;
+                    font-size: 15px;
+                    line-height: 1.7;
+                  '
+                >
+                  Chào
+                  {{name}}, hãy dùng mã bên dưới để hoàn tất xác thực.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style='padding: 30px 28px 10px; text-align: center'>
+                <div
+                  style='
+                    display: inline-block;
+                    min-width: 252px;
+                    padding: 18px 22px;
+                    border: 1px solid #ffd0df;
+                    border-radius: 22px;
+                    background: #fff8fb;
+                    color: #bd4878;
+                    font-size: 36px;
+                    line-height: 1;
+                    font-weight: 800;
+                    letter-spacing: 10px;
+                    text-align: center;
+                  '
+                >
+                  {{otp}}
+                </div>
+
+                <p
+                  style='
+                    margin: 18px 0 0;
+                    color: #8a7280;
+                    font-size: 14px;
+                    line-height: 1.7;
+                  '
+                >
+                  Mã OTP gồm 6 số. Mã sẽ hết hạn sau
+                  {{expiresIn}}.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style='padding: 18px 28px 32px'>
+                <div
+                  style='
+                    padding: 16px 18px;
+                    border-radius: 18px;
+                    background: #fff0f5;
+                    color: #765967;
+                    font-size: 13px;
+                    line-height: 1.7;
+                  '
+                >
+                  Nếu bạn không yêu cầu mã này, bạn có thể bỏ qua email. Đừng
+                  chia sẻ mã OTP với bất kỳ ai để bảo vệ tài khoản của bạn.
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td
+                style='
+                  padding: 18px 28px 26px;
+                  background: #fff9fb;
+                  color: #a58a98;
+                  text-align: center;
+                  font-size: 12px;
+                  line-height: 1.6;
+                '
+              >
+                Email này được gửi tự động từ LoveSync. Mong bạn có một ngày
+                thật dịu dàng 🌷
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

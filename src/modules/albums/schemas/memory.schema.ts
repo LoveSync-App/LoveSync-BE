@@ -1,41 +1,40 @@
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { Album } from "../../albums/schemas/album.schema";
-import { HydratedDocument, Types } from "mongoose";
-import { MemoryFileType } from "../enum/memory-file-type.enum";
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { HydratedDocument, Types } from 'mongoose';
+import { Couple } from '../../couples/schemas/couple.schema';
+import { User } from '../../users/schemas/user.schema';
 
-export type AlbumDocument = HydratedDocument<Album>;
+export type MemoryDocument = HydratedDocument<Memory>;
 
-@Schema()
+@Schema({ timestamps: true, versionKey: false })
 export class Memory {
-    @Prop(
-        {
-            type: Types.ObjectId,
-            ref: Album.name,
-        }
-    )
-    album: Types.ObjectId;
+  @Prop({
+    required: true,
+    type: Types.ObjectId,
+    ref: Couple.name,
+    index: true,
+  })
+  couple: Types.ObjectId;
 
-    @Prop(
-        {
-            type: Types.ObjectId,
-        }
-    )
-    uploader: Types.ObjectId;
+  @Prop({
+    required: true,
+    type: Types.ObjectId,
+    ref: User.name,
+  })
+  uploader: Types.ObjectId;
 
-    @Prop()
-    file_url: string;
+  @Prop({ required: true, trim: true })
+  description: string;
 
-    @Prop(
-        {
-            type: String,
-            enum: MemoryFileType,
-            default: MemoryFileType.IMAGE,
-        }
-    )
-    file_type: MemoryFileType;
+  @Prop({ required: true, trim: true })
+  file_url: string;
 
-    @Prop()
-    description: string;
+  @Prop({ required: true, type: Date, index: true })
+  time: Date;
+
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export const MemorySchema = SchemaFactory.createForClass(Memory);
+
+MemorySchema.index({ couple: 1, time: -1 });

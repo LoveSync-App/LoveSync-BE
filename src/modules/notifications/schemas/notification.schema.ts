@@ -4,10 +4,8 @@ import { User } from "../../users/schemas/user.schema";
 
 export type NotificationDocument = HydratedDocument<Notification>;
 
-
 @Schema()
 export class Notification {
-    
     @Prop(
         {
             type: Types.ObjectId,
