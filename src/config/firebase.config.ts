@@ -1,17 +1,46 @@
-import { initializeApp, cert, getApps, ServiceAccount } from 'firebase-admin/app';
-import serviceAccount from '../../firebase-service-account.json';
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import {
+  App,
+  cert,
+  getApps,
+  initializeApp,
+  ServiceAccount,
+} from 'firebase-admin/app';
 
-const firebaseServiceAccount: ServiceAccount = {
-    projectId: serviceAccount.project_id,
-    privateKey: serviceAccount.private_key,
-    clientEmail: serviceAccount.client_email,
-};
+export const FIREBASE_APP = 'FIREBASE_APP';
 
-const app =
-    getApps().length === 0
-    ? initializeApp({
-        credential: cert(firebaseServiceAccount),
-    })
-    : getApps()[0];
+@Module({
+  imports: [ConfigModule],
+  providers: [
+    {
+      provide: FIREBASE_APP,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService): App => {
+        const projectId = configService.get<string>('FIREBASE_PROJECT_ID');
+        const clientEmail = configService.get<string>('FIREBASE_CLIENT_EMAIL');
+        const privateKey = configService.get<string>('FIREBASE_PRIVATE_KEY');
 
-export default app;
+        if (!projectId || !clientEmail || !privateKey) {
+          throw new Error(
+            'Missing Firebase config. Please set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY in .env',
+          );
+        }
+
+        const firebaseServiceAccount: ServiceAccount = {
+          projectId,
+          clientEmail,
+          privateKey: privateKey.replace(/\\n/g, '\n'),
+        };
+
+        return getApps().length === 0
+          ? initializeApp({
+              credential: cert(firebaseServiceAccount),
+            })
+          : getApps()[0];
+      },
+    },
+  ],
+  exports: [FIREBASE_APP],
+})
+export class FirebaseConfigModule {}

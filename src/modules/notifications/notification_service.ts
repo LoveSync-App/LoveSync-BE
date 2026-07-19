@@ -1,16 +1,19 @@
-import { Injectable } from '@nestjs/common';
-import admin from '../../config/firebase.config';
+import { Inject, Injectable } from '@nestjs/common';
+import type { App } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
+import { FIREBASE_APP } from '../../config/firebase.config';
 
 @Injectable()
 export class NotificationService {
+  constructor(@Inject(FIREBASE_APP) private readonly firebaseApp: App) {}
+
   async sendNotification(
     token: string,
     title: string,
     body: string,
     data?: Record<string, string>,
   ) {
-    const messaging = getMessaging(admin);
+    const messaging = getMessaging(this.firebaseApp);
     const response = await messaging.send({
       token: token,
       notification: {

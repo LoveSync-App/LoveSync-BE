@@ -11,6 +11,7 @@ import { AuthSessionService } from './auth-session.service';
 import { FirebaseIdentityService } from './firebase-identity.service';
 import { DeviceModule } from '../device/device.module';
 import { MailModule } from '../mail/mail.module';
+import { FirebaseConfigModule } from '../../config/firebase.config';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { MailModule } from '../mail/mail.module';
     PassportModule,
     DeviceModule,
     MailModule,
+    FirebaseConfigModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
