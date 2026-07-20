@@ -11,7 +11,6 @@ export class User {
   email: string;
 
   @Prop({
-    unique: true,
     sparse: true,
     trim: true,
     default: " ",
