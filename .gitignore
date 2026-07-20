@@ -57,10 +57,3 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 firebase-service-account.json
 
-docs
-!docs/
-docs/*
-!docs/calendar-events.md
-!docs/authentication.md
-!docs/e2ee-messaging.md
-/docs

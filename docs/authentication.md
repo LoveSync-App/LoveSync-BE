@@ -1,25 +1,25 @@
-# Authentication and single active session
+# Xác thực và cơ chế một phiên đăng nhập duy nhất
 
-## Overview
+## Tổng quan
 
-An account may be linked to multiple login methods:
+Một tài khoản có thể được liên kết với nhiều phương thức đăng nhập:
 
-- email and password;
-- Google through Firebase Authentication.
+- Email và mật khẩu.
+- Google thông qua Firebase Authentication.
 
-The backend groups login methods by the verified, normalized email address. Only
-one session may be active for an account. A successful password or Google login
-immediately invalidates the previous session.
+Backend sẽ nhóm các phương thức đăng nhập dựa trên địa chỉ email đã được xác minh và chuẩn hóa. Mỗi tài khoản chỉ được phép tồn tại **một phiên đăng nhập (session) đang hoạt động**. Khi người dùng đăng nhập thành công bằng mật khẩu hoặc Google, phiên đăng nhập trước đó sẽ ngay lập tức bị vô hiệu hóa.
 
-All protected endpoints use:
+Tất cả các API yêu cầu xác thực đều sử dụng:
 
 ```http
 Authorization: Bearer <accessToken>
 ```
 
-## Password registration and login
+---
 
-### Register
+## Đăng ký và đăng nhập bằng mật khẩu
+
+### Đăng ký
 
 ```http
 POST /auth/register
@@ -35,12 +35,11 @@ Content-Type: application/json
 }
 ```
 
-Registration rejects an email that already belongs to any account.
+Hệ thống sẽ từ chối đăng ký nếu địa chỉ email đã thuộc về bất kỳ tài khoản nào.
 
-### Add password login to a Google-only account
+### Thêm phương thức đăng nhập bằng mật khẩu cho tài khoản chỉ dùng Google
 
-This operation requires the current application JWT, which proves ownership of
-the existing account.
+Thao tác này yêu cầu JWT hiện tại của ứng dụng để chứng minh người dùng là chủ sở hữu của tài khoản.
 
 ```http
 POST /auth/password
@@ -55,10 +54,11 @@ Content-Type: application/json
 }
 ```
 
-The endpoint returns the updated user. It rejects accounts that already have
-password login enabled.
+API sẽ trả về thông tin người dùng sau khi cập nhật.
 
-### Login
+Nếu tài khoản đã bật đăng nhập bằng mật khẩu trước đó thì yêu cầu sẽ bị từ chối.
+
+### Đăng nhập
 
 ```http
 POST /auth/login
@@ -72,11 +72,15 @@ Content-Type: application/json
 }
 ```
 
-## Google login with Firebase
+---
 
-The mobile app must first authenticate with Google through Firebase. It then
-sends the **Firebase ID token** to the backend. Do not send the Google access
-token or trust an email supplied by the client.
+## Đăng nhập Google bằng Firebase
+
+Ứng dụng di động phải đăng nhập Google thông qua Firebase Authentication trước.
+
+Sau đó ứng dụng gửi **Firebase ID Token** đến backend.
+
+> **Lưu ý:** Không gửi Google Access Token và không tin tưởng địa chỉ email do client tự cung cấp.
 
 ```http
 POST /auth/google
@@ -91,22 +95,21 @@ Content-Type: application/json
 }
 ```
 
-`name` and `avatar` are required profile fallbacks. When valid values are
-present in the verified Firebase token, the backend prefers those token claims.
+Các trường `name` và `avatar` được dùng làm thông tin dự phòng. Nếu Firebase ID Token đã chứa các giá trị hợp lệ thì backend sẽ ưu tiên sử dụng các giá trị trong token.
 
-The backend:
+Backend sẽ:
 
-1. verifies the token signature, expiry, revocation status and Firebase project;
-2. requires `firebase.sign_in_provider` to be `google.com`;
-3. requires a verified email;
-4. finds the local user by normalized email and links Google to that user;
-5. creates a new user when the email does not exist.
+1. Xác thực chữ ký, thời hạn, trạng thái thu hồi và Firebase Project của token.
+2. Kiểm tra `firebase.sign_in_provider` phải là `google.com`.
+3. Yêu cầu email trong token phải được xác minh.
+4. Tìm người dùng trong hệ thống theo email đã chuẩn hóa và liên kết tài khoản Google với người dùng đó.
+5. Tạo tài khoản mới nếu email chưa tồn tại.
 
-The same Firebase UID cannot be linked to a different local email.
+Một Firebase UID chỉ có thể liên kết với duy nhất một email trong hệ thống.
 
-### Flutter outline
+### Ví dụ trong Flutter
 
-After completing Google sign-in and signing in to Firebase:
+Sau khi hoàn tất đăng nhập Google và Firebase:
 
 ```dart
 final firebaseUser = FirebaseAuth.instance.currentUser!;
@@ -119,12 +122,13 @@ await api.post('/auth/google', data: {
 });
 ```
 
-The value returned by `getIdToken()` is the Firebase ID token expected by the
-API.
+Giá trị trả về từ `getIdToken()` chính là **Firebase ID Token** mà API yêu cầu.
 
-## Login response
+---
 
-Both login endpoints return an access token and a refresh token:
+## Phản hồi khi đăng nhập
+
+Cả hai API đăng nhập đều trả về **Access Token** và **Refresh Token**:
 
 ```json
 {
@@ -147,15 +151,17 @@ Both login endpoints return an access token and a refresh token:
 }
 ```
 
-Store `data.accessToken` and use it for REST and Socket.IO authentication. Store
-`data.refreshToken` securely and use it only with `/auth/refresh`.
-When `e2eeSetupRequired` is `true`, continue with the key setup flow documented
-in [End-to-end encrypted messaging](e2ee-messaging.md).
+Lưu trữ `data.accessToken` và sử dụng token này để xác thực các REST API và Socket.IO.
 
-## Refresh token
+Lưu trữ `data.refreshToken` một cách an toàn và chỉ sử dụng với API `/auth/refresh`.
 
-When a protected REST API returns `401 Unauthorized` because the access token is
-expired, the app can request a new token pair:
+Nếu `e2eeSetupRequired` bằng `true`, ứng dụng cần tiếp tục quy trình thiết lập khóa mã hóa được mô tả trong tài liệu **End-to-end encrypted messaging**.
+
+---
+
+## Refresh Token
+
+Khi một REST API trả về `401 Unauthorized` do Access Token hết hạn, ứng dụng có thể yêu cầu cặp token mới:
 
 ```http
 POST /auth/refresh
@@ -168,7 +174,7 @@ Content-Type: application/json
 }
 ```
 
-Response:
+Phản hồi:
 
 ```json
 {
@@ -182,20 +188,42 @@ Response:
 }
 ```
 
-Refresh tokens are rotating one-time tokens. After a successful refresh, the old
-refresh token is invalid and the app must replace both stored tokens with the
-new values immediately. If the refresh token is expired, already used, logged
-out, or belongs to a session replaced by another device, the endpoint returns
-`401 Unauthorized`; the app should clear local auth state and navigate to login.
+Refresh Token là **token chỉ được sử dụng một lần (Rotating Refresh Token)**.
 
-Socket.IO connections cannot use a refresh token. Reconnect sockets with the new
-`accessToken` after refresh.
+Sau khi refresh thành công:
 
-## Forgot password with email OTP
+- Refresh Token cũ sẽ không còn hiệu lực.
+- Ứng dụng phải thay thế ngay Access Token và Refresh Token đang lưu bằng các giá trị mới.
 
-This flow is public and does not require `Authorization`.
+Nếu Refresh Token:
 
-### Request password reset OTP
+- đã hết hạn;
+- đã được sử dụng;
+- đã đăng xuất;
+- hoặc thuộc về một phiên đã bị thay thế bởi thiết bị khác;
+
+API sẽ trả về:
+
+```
+401 Unauthorized
+```
+
+Khi đó ứng dụng cần:
+
+- xóa toàn bộ trạng thái đăng nhập cục bộ;
+- chuyển người dùng về màn hình đăng nhập.
+
+Socket.IO **không sử dụng Refresh Token**.
+
+Sau khi refresh thành công, cần kết nối lại Socket.IO bằng Access Token mới.
+
+---
+
+## Quên mật khẩu bằng OTP qua Email
+
+Quy trình này là API công khai và **không yêu cầu Authorization**.
+
+### Yêu cầu gửi OTP đặt lại mật khẩu
 
 ```http
 POST /auth/password/forgot
@@ -208,7 +236,7 @@ Content-Type: application/json
 }
 ```
 
-Response:
+Phản hồi:
 
 ```json
 {
@@ -221,15 +249,18 @@ Response:
 }
 ```
 
-For privacy, the API returns the same successful response even when the email is
-not registered. If the account exists and is active, the server sends a 6-digit
-OTP using the `otp.hbs` email template.
+Để bảo vệ quyền riêng tư, API luôn trả về phản hồi thành công ngay cả khi email chưa được đăng ký.
 
-The server stores only a hashed OTP in Redis. The OTP expires after
-`PASSWORD_RESET_OTP_TTL_SECONDS`, and resend requests are throttled by
-`PASSWORD_RESET_OTP_COOLDOWN_SECONDS`.
+Nếu tài khoản tồn tại và đang hoạt động, hệ thống sẽ gửi mã OTP gồm **6 chữ số** bằng mẫu email `otp.hbs`.
 
-### Reset password with OTP
+Máy chủ chỉ lưu **OTP đã được băm (hash)** trong Redis.
+
+OTP:
+
+- hết hạn sau `PASSWORD_RESET_OTP_TTL_SECONDS`;
+- việc gửi lại bị giới hạn bởi `PASSWORD_RESET_OTP_COOLDOWN_SECONDS`.
+
+### Đặt lại mật khẩu bằng OTP
 
 ```http
 POST /auth/password/reset
@@ -245,7 +276,7 @@ Content-Type: application/json
 }
 ```
 
-Response:
+Phản hồi:
 
 ```json
 {
@@ -257,9 +288,19 @@ Response:
 }
 ```
 
-On success, the OTP is deleted, password login is enabled for the account, and
-the current active session is revoked. Existing REST access/refresh tokens then
-return `401 Unauthorized`, and connected sockets receive:
+Khi thành công:
+
+- OTP sẽ bị xóa.
+- Đăng nhập bằng mật khẩu được kích hoạt cho tài khoản.
+- Phiên đăng nhập hiện tại sẽ bị thu hồi.
+
+Các Access Token và Refresh Token cũ sẽ trả về:
+
+```
+401 Unauthorized
+```
+
+Các Socket đang kết nối sẽ nhận sự kiện:
 
 ```text
 auth:session-revoked
@@ -272,19 +313,47 @@ auth:session-revoked
 }
 ```
 
-Invalid, expired, or over-attempted OTPs return `401 Unauthorized`. Password and
-password confirmation mismatch returns `400 Bad Request`.
+Nếu OTP:
 
-## One active session
+- không hợp lệ;
+- đã hết hạn;
+- vượt quá số lần thử;
 
-Every successful login creates a new session ID and embeds it in the application
-JWT and refresh token. The previous access token and refresh token then receive
-`401 Unauthorized`. Tokens created before this feature do not contain a session
-ID and are also rejected, so existing users must sign in again after deployment.
+API sẽ trả về:
 
-The `/chat`, `/calls`, and `/locations` Socket.IO namespaces validate the same
-session. When an account signs in again, connected sockets from the old session
-receive:
+```
+401 Unauthorized
+```
+
+Nếu mật khẩu và xác nhận mật khẩu không khớp sẽ trả về:
+
+```
+400 Bad Request
+```
+
+---
+
+## Cơ chế một phiên đăng nhập duy nhất
+
+Mỗi lần đăng nhập thành công, hệ thống sẽ tạo một **Session ID** mới và nhúng giá trị này vào Application JWT và Refresh Token.
+
+Access Token và Refresh Token của phiên trước sẽ không còn hợp lệ và trả về:
+
+```
+401 Unauthorized
+```
+
+Các token được tạo trước khi triển khai tính năng Session ID cũng sẽ bị từ chối, vì vậy người dùng cần đăng nhập lại sau khi cập nhật hệ thống.
+
+Các namespace Socket.IO:
+
+- `/chat`
+- `/calls`
+- `/locations`
+
+đều xác thực cùng một Session ID.
+
+Nếu tài khoản đăng nhập trên thiết bị khác, các Socket của phiên cũ sẽ nhận được:
 
 ```text
 auth:session-revoked
@@ -297,11 +366,15 @@ auth:session-revoked
 }
 ```
 
-The server disconnects those sockets immediately. The app should clear its
-stored token, stop reconnect attempts, and navigate to the login screen when it
-receives this event or a session-related `401`.
+Máy chủ sẽ ngay lập tức ngắt các Socket này.
 
-Socket connection remains:
+Ứng dụng cần:
+
+- xóa token đang lưu;
+- dừng tự động kết nối lại Socket;
+- chuyển người dùng về màn hình đăng nhập khi nhận được sự kiện này hoặc lỗi `401` liên quan đến session.
+
+Kết nối Socket vẫn giữ nguyên:
 
 ```js
 io(`${API_URL}/chat`, {
@@ -309,16 +382,18 @@ io(`${API_URL}/chat`, {
 });
 ```
 
-Use the same application JWT for the other namespaces.
+Sử dụng cùng một Application JWT cho các namespace Socket.IO còn lại.
 
-## Logout
+---
+
+## Đăng xuất
 
 ```http
 POST /auth/logout
 Authorization: Bearer <accessToken>
 ```
 
-Response:
+Phản hồi:
 
 ```json
 {
@@ -330,10 +405,15 @@ Response:
 }
 ```
 
-Logout invalidates the current JWT and disconnects its active sockets.
-It also invalidates the current refresh token.
+Khi đăng xuất:
 
-## Environment
+- JWT hiện tại sẽ bị vô hiệu hóa.
+- Các Socket đang hoạt động sẽ bị ngắt kết nối.
+- Refresh Token hiện tại cũng sẽ bị vô hiệu hóa.
+
+---
+
+## Biến môi trường
 
 ```env
 JWT_SECRET_KEY=...
@@ -349,25 +429,35 @@ REDIS_PORT=6379
 REDIS_PASSWORD=...
 ```
 
-Use a different strong secret for `JWT_REFRESH_SECRET_KEY`; do not reuse
-`JWT_SECRET_KEY`. Use another strong secret for `PASSWORD_RESET_OTP_SECRET`.
+Nên sử dụng một khóa bí mật mạnh riêng cho `JWT_REFRESH_SECRET_KEY`, không tái sử dụng `JWT_SECRET_KEY`.
 
-## Firebase server configuration
+Tương tự, `PASSWORD_RESET_OTP_SECRET` cũng nên sử dụng một khóa bí mật mạnh khác.
 
-Enable Google in Firebase Console under Authentication providers. The backend
-uses the Firebase Admin service account from:
+---
+
+## Cấu hình Firebase phía máy chủ
+
+Bật phương thức đăng nhập Google trong **Firebase Console → Authentication → Sign-in providers**.
+
+Backend sử dụng tài khoản dịch vụ Firebase Admin từ tệp:
 
 ```text
 firebase-service-account.json
 ```
 
-This file is ignored by Git and must be provisioned securely in every deployed
-environment. The mobile Firebase project and backend service account must belong
-to the same Firebase project.
+Tệp này phải được:
 
-## Multiple backend instances
+- đưa vào `.gitignore`;
+- triển khai an toàn trên mọi môi trường.
 
-Session validation remains correct because the active session ID is stored in
-MongoDB. Immediate socket disconnection is process-local. When deploying more
-than one backend instance, use a shared Socket.IO adapter/registry (for example,
-Redis) so the revoke event can reach sockets connected to another instance.
+Dự án Firebase của ứng dụng di động và tài khoản dịch vụ Firebase Admin của backend phải thuộc **cùng một Firebase Project**.
+
+---
+
+## Triển khai nhiều Backend Instance
+
+Việc xác thực Session vẫn hoạt động chính xác vì Session ID đang hoạt động được lưu trong MongoDB.
+
+Tuy nhiên, việc ngắt kết nối Socket ngay lập tức chỉ có hiệu lực trong cùng một tiến trình (process).
+
+Khi triển khai nhiều backend instance, nên sử dụng một **Socket.IO adapter hoặc registry dùng chung** (ví dụ Redis) để sự kiện thu hồi phiên (`session revoke`) có thể được gửi đến các Socket đang kết nối ở những instance khác.

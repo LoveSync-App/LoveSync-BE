@@ -1,81 +1,97 @@
-# End-to-end encrypted messaging
+# Nhắn tin mã hóa đầu cuối (End-to-End Encryption - E2EE)
 
-## Security model
+## Mô hình bảo mật
 
-The mobile app generates and uses all plaintext private keys. The backend never
-generates, receives, or decrypts a plaintext private key and never receives the
-six-digit recovery code.
+Ứng dụng di động chịu trách nhiệm tạo và sử dụng toàn bộ khóa riêng (Private Key) ở dạng bản rõ (plaintext).
 
-The backend stores:
+Backend **không bao giờ**:
 
-- an RSA public key as JWK;
-- the private key encrypted on the device with the recovery code;
-- encrypted message payloads and encrypted per-message AES keys.
+- tạo khóa riêng;
+- nhận khóa riêng ở dạng bản rõ;
+- giải mã khóa riêng;
+- nhận mã khôi phục gồm 6 chữ số.
 
-Algorithms used by this API version:
+Backend chỉ lưu trữ:
 
-| Purpose                  | Algorithm                             |
-| ------------------------ | ------------------------------------- |
-| User key pair            | RSA-OAEP, minimum 2048 bits, SHA-256  |
-| Recovery-code KDF        | PBKDF2-HMAC-SHA256                    |
-| Private-key backup       | AES-256-GCM                           |
-| Message content          | AES-256-GCM                           |
-| Message AES-key wrapping | RSA-OAEP-256 for sender and recipient |
+- khóa công khai (RSA Public Key) dưới định dạng JWK;
+- khóa riêng đã được mã hóa trên thiết bị bằng mã khôi phục;
+- nội dung tin nhắn đã mã hóa và khóa AES của từng tin nhắn đã được mã hóa.
 
-The six-digit code has low entropy and an attacker with the encrypted backup can
-attempt an offline brute-force attack. PBKDF2 slows that attack but cannot make
-a six-digit code strong. This is an accepted limitation of the current version.
+Các thuật toán sử dụng trong phiên bản API hiện tại:
 
-## Account and device flow
+| Mục đích | Thuật toán |
+|----------|------------|
+| Cặp khóa người dùng | RSA-OAEP, tối thiểu 2048 bit, SHA-256 |
+| KDF cho mã khôi phục | PBKDF2-HMAC-SHA256 |
+| Sao lưu khóa riêng | AES-256-GCM |
+| Nội dung tin nhắn | AES-256-GCM |
+| Mã hóa khóa AES của tin nhắn | RSA-OAEP-256 cho cả người gửi và người nhận |
 
-### New account
+Do mã khôi phục chỉ gồm **6 chữ số** nên mức độ ngẫu nhiên (entropy) thấp. Nếu kẻ tấn công lấy được bản sao lưu khóa riêng đã mã hóa, họ vẫn có thể thực hiện tấn công brute-force ngoại tuyến.
 
-1. Register and log in, or log in through Google.
-2. Check `user.e2eeSetupRequired` in the login response.
-3. Generate an RSA-OAEP key pair on the mobile device. The private key must be
-   exportable so it can be encrypted for recovery.
-4. Ask the user to create a six-digit code and enter it a second time. Verify
-   equality entirely on the device.
-5. Generate a random salt of at least 16 bytes.
-6. Derive a 256-bit AES key from the UTF-8 recovery code with
-   PBKDF2-HMAC-SHA256. The API accepts 100,000–2,000,000 iterations; 600,000 is
-   the recommended initial value when device performance permits.
-7. Export the private key, generate a random 12-byte IV, and encrypt the private
-   key with AES-256-GCM. Keep the 16-byte authentication tag.
-8. Upload the public key and encrypted backup with `POST /e2ee/keys`.
-9. Remove the plaintext exported private-key bytes and derived AES key from
-   memory. Keep the imported private key in secure device storage where
-   supported.
+PBKDF2 giúp làm chậm quá trình này nhưng không thể biến mã 6 chữ số thành một mật khẩu mạnh. Đây là một hạn chế đã được chấp nhận trong phiên bản hiện tại.
 
-Do not send `recoveryCode` in any request. The global validation pipe rejects
-unknown fields, including a recovery code accidentally added to the setup body.
+---
 
-### Login on a new device
+# Quy trình tài khoản và thiết bị
 
-A login on the new device invalidates the previous device session. When
-`e2eeSetupRequired` is `false`:
+## Tài khoản mới
 
-1. call `GET /e2ee/keys/me`;
-2. ask for the six-digit recovery code;
-3. run PBKDF2 using the returned salt and iteration count;
-4. decrypt and authenticate the private-key backup with AES-GCM;
-5. import the recovered private key into the local crypto provider.
+1. Đăng ký và đăng nhập hoặc đăng nhập bằng Google.
+2. Kiểm tra `user.e2eeSetupRequired` trong phản hồi đăng nhập.
+3. Sinh một cặp khóa RSA-OAEP trên thiết bị di động. Khóa riêng phải có thể export để phục vụ việc sao lưu.
+4. Yêu cầu người dùng tạo mã khôi phục gồm 6 chữ số và nhập lại lần thứ hai. Việc so sánh phải được thực hiện hoàn toàn trên thiết bị.
+5. Sinh một giá trị **salt ngẫu nhiên** có độ dài tối thiểu **16 byte**.
+6. Từ mã khôi phục (UTF-8), sinh khóa AES 256 bit bằng PBKDF2-HMAC-SHA256. API chấp nhận từ **100.000 đến 2.000.000** vòng lặp; **600.000** là giá trị khuyến nghị nếu hiệu năng thiết bị cho phép.
+7. Export khóa riêng, sinh IV ngẫu nhiên dài **12 byte**, sau đó mã hóa khóa riêng bằng AES-256-GCM và lưu lại Authentication Tag dài **16 byte**.
+8. Gửi khóa công khai và bản sao lưu đã mã hóa lên backend thông qua `POST /e2ee/keys`.
+9. Xóa khóa riêng ở dạng bản rõ và khóa AES vừa sinh khỏi bộ nhớ. Chỉ giữ khóa riêng đã import trong vùng lưu trữ bảo mật của thiết bị (nếu nền tảng hỗ trợ).
 
-An AES-GCM authentication failure means the code is incorrect or the backup is
-damaged. Do not upload the code to the backend for verification.
+> **Không bao giờ gửi `recoveryCode` đến backend.**
 
-There is currently no recovery-code reset or key rotation API. Losing the code
-means the private key and old encrypted messages cannot be recovered.
+Global Validation Pipe sẽ từ chối mọi trường không xác định, bao gồm cả `recoveryCode` nếu vô tình được gửi trong request.
 
-## Key APIs
+---
 
-All endpoints require:
+## Đăng nhập trên thiết bị mới
+
+Khi đăng nhập trên thiết bị mới, phiên đăng nhập của thiết bị cũ sẽ bị vô hiệu hóa.
+
+Nếu `e2eeSetupRequired = false`:
+
+1. Gọi `GET /e2ee/keys/me`.
+2. Yêu cầu người dùng nhập mã khôi phục gồm 6 chữ số.
+3. Thực hiện PBKDF2 với Salt và số vòng lặp nhận được.
+4. Giải mã và xác thực bản sao lưu khóa riêng bằng AES-GCM.
+5. Import khóa riêng vừa khôi phục vào bộ cung cấp mã hóa (Crypto Provider) của thiết bị.
+
+Nếu xác thực AES-GCM thất bại thì:
+
+- mã khôi phục không đúng;
+- hoặc bản sao lưu đã bị hỏng.
+
+**Không gửi mã khôi phục lên backend để kiểm tra.**
+
+Hiện tại chưa có API:
+
+- đặt lại mã khôi phục;
+- xoay vòng (Rotate) khóa.
+
+Nếu mất mã khôi phục thì khóa riêng và toàn bộ các tin nhắn cũ đã mã hóa sẽ không thể khôi phục được.
+
+---
+
+# API quản lý khóa
+
+Tất cả API đều yêu cầu:
 
 ```http
 Authorization: Bearer <accessToken>
 ```
 
-### Configure keys once
+---
+
+## Thiết lập khóa (chỉ thực hiện một lần)
 
 ```http
 POST /e2ee/keys
@@ -95,15 +111,15 @@ Content-Type: application/json
     "algorithm": "AES-256-GCM",
     "kdf": "PBKDF2-HMAC-SHA256",
     "iterations": 600000,
-    "salt": "<base64, at least 16 bytes>",
-    "iv": "<base64, exactly 12 bytes>",
-    "authTag": "<base64, exactly 16 bytes>",
-    "ciphertext": "<base64 encrypted private key>"
+    "salt": "<base64, tối thiểu 16 byte>",
+    "iv": "<base64, chính xác 12 byte>",
+    "authTag": "<base64, chính xác 16 byte>",
+    "ciphertext": "<base64 khóa riêng đã mã hóa>"
   }
 }
 ```
 
-Response:
+Phản hồi:
 
 ```json
 {
@@ -121,16 +137,23 @@ Response:
 }
 ```
 
-The endpoint returns `409 Conflict` if keys are already configured. It does not
-return the encrypted private key in the setup response.
+Nếu khóa đã được cấu hình trước đó, API sẽ trả về:
 
-### Download my recovery bundle
+```
+409 Conflict
+```
+
+API **không trả lại khóa riêng đã mã hóa** trong phản hồi.
+
+---
+
+## Tải bản sao lưu khóa của chính mình
 
 ```http
 GET /e2ee/keys/me
 ```
 
-Response includes the public key and:
+Phản hồi bao gồm khóa công khai và:
 
 ```json
 {
@@ -146,37 +169,55 @@ Response includes the public key and:
 }
 ```
 
-Only the owner can retrieve this encrypted backup.
+Chỉ chủ sở hữu tài khoản mới có quyền lấy bản sao lưu này.
 
-### Get the active partner public key
+---
+
+## Lấy khóa công khai của người yêu
 
 ```http
 GET /e2ee/keys/partner
 ```
 
-The response contains only the active partner's `userId`, `keyVersion`, and
-public key. It returns `404` when there is no active couple or the partner has
-not configured E2EE.
+API chỉ trả về:
 
-## Sending an encrypted message
+- `userId`
+- `keyVersion`
+- Public Key
 
-Before encrypting, load:
+của người yêu hiện tại.
 
-- the sender public/private key and `keyVersion`;
-- the current partner public key and `keyVersion`.
+Nếu:
 
-For every message:
+- chưa ghép đôi;
+- hoặc người yêu chưa cấu hình E2EE;
 
-1. generate a new random 256-bit AES message key;
-2. generate a new random 12-byte IV;
-3. encrypt UTF-8 message content with AES-256-GCM;
-4. encrypt the raw AES message key with the sender public key;
-5. encrypt the same raw AES message key with the recipient public key;
-6. remove the raw AES key and plaintext bytes from memory;
-7. send the envelope below.
+API sẽ trả về:
 
-Encrypting the message key for both people allows the sender to decrypt their
-own history after reinstalling the app.
+```
+404 Not Found
+```
+
+---
+
+# Gửi tin nhắn được mã hóa
+
+Trước khi mã hóa tin nhắn cần tải:
+
+- Public Key, Private Key và `keyVersion` của người gửi.
+- Public Key và `keyVersion` hiện tại của người nhận.
+
+Đối với **mỗi tin nhắn**:
+
+1. Sinh khóa AES 256 bit ngẫu nhiên.
+2. Sinh IV ngẫu nhiên dài 12 byte.
+3. Mã hóa nội dung UTF-8 bằng AES-256-GCM.
+4. Mã hóa khóa AES bằng Public Key của người gửi.
+5. Mã hóa cùng khóa AES đó bằng Public Key của người nhận.
+6. Xóa khóa AES và dữ liệu bản rõ khỏi bộ nhớ.
+7. Gửi gói dữ liệu sau.
+
+Việc mã hóa khóa AES cho **cả người gửi và người nhận** cho phép người gửi vẫn có thể đọc lại lịch sử trò chuyện sau khi cài lại ứng dụng.
 
 ```http
 POST /chat/send-message
@@ -189,8 +230,8 @@ Content-Type: application/json
   "encryption": {
     "algorithm": "RSA-OAEP-256+A256GCM",
     "ciphertext": "<base64 AES-GCM ciphertext>",
-    "iv": "<base64, exactly 12 bytes>",
-    "authTag": "<base64, exactly 16 bytes>",
+    "iv": "<base64, đúng 12 byte>",
+    "authTag": "<base64, đúng 16 byte>",
     "senderEncryptedKey": "<base64 RSA-encrypted AES key>",
     "recipientEncryptedKey": "<base64 RSA-encrypted AES key>",
     "senderKeyVersion": 1,
@@ -199,31 +240,82 @@ Content-Type: application/json
 }
 ```
 
-Never send `message` together with `encryption`. Once both members of a couple
-have E2EE keys, the API rejects plaintext text messages. During migration,
-plaintext remains available only while at least one member has not configured
-keys.
+> Không bao giờ gửi đồng thời trường `message` và `encryption`.
 
-The server validates that both key versions are current. A `409 Conflict` means
-the app must fetch the public keys again and re-encrypt the unsent plaintext.
+Khi cả hai thành viên đã thiết lập E2EE, API sẽ từ chối mọi tin nhắn dạng bản rõ (Plaintext).
 
-## Reading messages
+Trong giai đoạn chuyển đổi, tin nhắn bản rõ chỉ được phép gửi nếu **ít nhất một trong hai người chưa cấu hình E2EE**.
 
-`GET /chat` and Socket.IO message events return the same `encryption` object.
-Choose the wrapped key by comparing the current user with `message.sender`:
+Backend sẽ kiểm tra `keyVersion` của cả hai bên.
 
-- sender: decrypt `senderEncryptedKey`;
-- recipient: decrypt `recipientEncryptedKey`.
+Nếu trả về:
 
-Use the recovered AES message key with `iv`, `authTag`, and `ciphertext`.
-Authentication failure must be treated as a corrupted or tampered message.
+```
+409 Conflict
+```
 
-The backend cannot search, moderate, preview, or restore encrypted text because
-it has no plaintext key. Push notifications contain no message plaintext.
+ứng dụng cần:
 
-## Current scope
+1. tải lại Public Key mới;
+2. mã hóa lại nội dung chưa gửi;
+3. gửi lại tin nhắn.
 
-This version encrypts text and image captions sent through
-`POST /chat/send-message`. Uploaded image files, attachment URLs, location
-payloads, call timeline metadata, and other system events are not yet encrypted.
-Old messages already stored as plaintext are not migrated automatically.
+---
+
+# Đọc tin nhắn
+
+`GET /chat` và các sự kiện Socket.IO đều trả về cùng một đối tượng `encryption`.
+
+Ứng dụng xác định khóa cần dùng dựa trên `message.sender`:
+
+- Nếu là người gửi → giải mã `senderEncryptedKey`.
+- Nếu là người nhận → giải mã `recipientEncryptedKey`.
+
+Sau khi thu được khóa AES của tin nhắn, sử dụng:
+
+- `iv`
+- `authTag`
+- `ciphertext`
+
+để giải mã nội dung.
+
+Nếu xác thực AES-GCM thất bại thì tin nhắn phải được xem là:
+
+- bị hỏng;
+- hoặc đã bị chỉnh sửa.
+
+Backend **không thể**:
+
+- tìm kiếm nội dung tin nhắn;
+- kiểm duyệt;
+- tạo bản xem trước;
+- khôi phục nội dung;
+
+vì backend không sở hữu khóa giải mã.
+
+Thông báo đẩy (Push Notification) cũng **không chứa nội dung tin nhắn**.
+
+---
+
+# Phạm vi hỗ trợ hiện tại
+
+Phiên bản hiện tại chỉ mã hóa:
+
+- nội dung văn bản;
+- chú thích (caption) của ảnh;
+
+được gửi thông qua:
+
+```
+POST /chat/send-message
+```
+
+Các dữ liệu sau **chưa được mã hóa**:
+
+- file ảnh đã tải lên;
+- URL tệp đính kèm;
+- dữ liệu vị trí;
+- metadata của cuộc gọi;
+- các sự kiện hệ thống khác.
+
+Các tin nhắn cũ đã được lưu ở dạng bản rõ sẽ **không được tự động chuyển đổi sang E2EE**.

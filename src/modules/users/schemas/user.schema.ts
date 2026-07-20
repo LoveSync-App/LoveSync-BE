@@ -14,7 +14,7 @@ export class User {
     unique: true,
     sparse: true,
     trim: true,
-    default: undefined,
+    default: " ",
   })
   phone?: string;
 

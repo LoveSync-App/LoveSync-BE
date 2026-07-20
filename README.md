@@ -1,108 +1,97 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# LoveSync Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend API cho LoveSync, được xây dựng bằng NestJS và TypeScript. Dự án cung cấp các dịch vụ cốt lõi cho ứng dụng cặp đôi: xác thực, hồ sơ người dùng, kết nối couple, chat, album kỷ niệm, vị trí thời gian thực, lịch, cuộc gọi, thông báo và mã hóa đầu cuối.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Tính năng chính
 
-## Description
+- Xác thực bằng JWT, refresh token, Google/Firebase và quản lý phiên đăng nhập.
+- Quản lý người dùng, couple, lời mời và trạng thái mối quan hệ.
+- Chat realtime qua Socket.IO, hỗ trợ timeline, phân trang và tin nhắn vị trí.
+- Chia sẻ vị trí trực tiếp, thông báo, lịch sự kiện và nhắc hẹn.
+- Album/kỷ niệm, upload media qua Cloudinary.
+- Cuộc gọi qua LiveKit và hỗ trợ E2EE cho tin nhắn.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Công nghệ
 
-## Feature documentation
+- NestJS 11, TypeScript
+- MongoDB/Mongoose
+- Redis/ioredis
+- Socket.IO
+- Firebase Admin
+- Cloudinary, LiveKit, Nodemailer
+- Jest, ESLint, Prettier
 
-- [LiveKit calling APIs](docs/livekit-calls.md)
-- [Memory sharing API](docs/memories.md)
-- [Chat timeline and pagination](docs/chat-timeline.md)
-- [Location sharing API](docs/location-sharing.md)
-- [Calendar events API](docs/calendar-events.md)
-- [Authentication and single-session API](docs/authentication.md)
-- [End-to-end encrypted messaging API](docs/e2ee-messaging.md)
+## Yêu cầu
 
-## Project setup
+- Node.js `>= 22.12.0`
+- npm
+- MongoDB
+- Redis
+- Tài khoản/dịch vụ cho Firebase, Cloudinary, LiveKit và SMTP mail nếu dùng các chức năng tương ứng
+
+## Cài đặt
 
 ```bash
-$ npm install
+npm install
+cp .env.example .env
 ```
 
-## Compile and run the project
+Cập nhật các biến môi trường trong `.env`, tối thiểu gồm:
+
+- `PORT`, `API_PREFIX`
+- `MONGO_URI`
+- `JWT_SECRET_KEY`, `JWT_REFRESH_SECRET_KEY`
+- `REDIS_HOST`, `REDIS_PORT`
+- `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`
+- `CLOUDINARY_*`, `LIVEKIT_*`, `MAIL_*` nếu cần
+
+## Chạy dự án
 
 ```bash
 # development
-$ npm run start
+npm run start
 
 # watch mode
-$ npm run start:dev
+npm run start:dev
 
-# production mode
-$ npm run start:prod
+# production
+npm run build
+npm run start:prod
 ```
 
-## Run tests
+Mặc định API chạy theo `PORT` và `API_PREFIX` trong `.env`, ví dụ `http://localhost:8080/api`.
+
+## Scripts
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm run lint
+npm run format
+npm run test
+npm run test:e2e
+npm run test:cov
 ```
 
-## Deployment
+## Tài liệu API
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+- [Authentication](docs/authentication.md)
+- [Calendar events](docs/calendar-events.md)
+- [Chat timeline](docs/chat-timeline.md)
+- [E2EE messaging](docs/e2ee-messaging.md)
+- [LiveKit calls](docs/livekit-calls.md)
+- [Location sharing](docs/location-sharing.md)
+- [Memories](docs/memories.md)
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Cấu trúc chính
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+```text
+src/
+  config/       Cấu hình môi trường, MongoDB, Redis, mail, Firebase, Cloudinary
+  modules/      Các domain module của ứng dụng
+  main.ts       Bootstrap NestJS app
+docs/           Tài liệu API theo từng tính năng
+test/           E2E tests
 ```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Dự án là mã nguồn nội bộ và được khai báo `UNLICENSED`.
